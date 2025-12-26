@@ -82,19 +82,19 @@ async function get<T>(action: string, params?: Record<string, string>): Promise<
 }
 
 /**
- * Helper: Fazer requisição POST
+ * Helper: Fazer requisição POST (usando GET por causa do CORS do Apps Script)
  */
 async function post<T>(action: string, data: unknown): Promise<T> {
+  const url = new URL(APPS_SCRIPT_URL);
+  url.searchParams.set('action', action);
+  url.searchParams.set('data', JSON.stringify(data));
+
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT);
 
   try {
-    const response = await fetch(APPS_SCRIPT_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ action, data }),
+    const response = await fetch(url.toString(), {
+      method: 'GET',
       signal: controller.signal,
     });
 

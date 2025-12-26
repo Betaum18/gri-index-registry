@@ -10,7 +10,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Menu, X, LogOut, User, FileText, MapPin, FolderOpen } from "lucide-react";
+import { Menu, X, LogOut, User, FileText, MapPin, FolderOpen, Users } from "lucide-react";
 import griLogo from "@/assets/gri-logo-new.png";
 import pmLogo from "@/assets/pm-logo-new.png";
 
@@ -45,6 +45,11 @@ const Header = () => {
       path: "/pastas",
       label: "Pastas",
       icon: FolderOpen,
+    },
+    {
+      path: "/usuarios",
+      label: "Usuários",
+      icon: Users,
     },
   ];
 

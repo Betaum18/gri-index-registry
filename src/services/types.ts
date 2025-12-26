@@ -31,11 +31,30 @@ export interface RegistrationInput {
 }
 
 /**
- * Usuário do sistema
+ * Usuário do sistema (para login/contexto)
  */
 export interface User {
   id: string;
   usuario: string;
+  nome_completo: string;
+}
+
+/**
+ * Usuário completo (para administração)
+ */
+export interface UserAdmin {
+  id: string;
+  usuario: string;
+  nome_completo: string;
+  ativo: boolean;
+}
+
+/**
+ * Input para criar novo usuário
+ */
+export interface UserInput {
+  usuario: string;
+  senha: string;
   nome_completo: string;
 }
 

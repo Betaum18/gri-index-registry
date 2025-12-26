@@ -20,6 +20,8 @@ import type {
   PastaInput,
   CreateResponse,
   ToggleResponse,
+  UserAdmin,
+  UserInput,
 } from './types';
 
 /**
@@ -164,6 +166,13 @@ export async function createRegistration(
 }
 
 /**
+ * Atualizar registro
+ */
+export async function updateRegistration(data: Partial<RegistrationInput> & { id: string }): Promise<DeleteResponse> {
+  return post<DeleteResponse>(API_ACTIONS.UPDATE_REGISTRATION, data);
+}
+
+/**
  * Deletar registro
  */
 export async function deleteRegistration(id: string): Promise<DeleteResponse> {
@@ -252,6 +261,36 @@ export async function deletePasta(id: string): Promise<DeleteResponse> {
  */
 export async function togglePasta(id: string): Promise<ToggleResponse> {
   return post<ToggleResponse>(API_ACTIONS.TOGGLE_PASTA, { id });
+}
+
+// ===== ENDPOINTS DE USUÁRIOS =====
+
+/**
+ * Buscar todos os Usuários
+ */
+export async function getUsers(): Promise<UserAdmin[]> {
+  return get<UserAdmin[]>(API_ACTIONS.GET_USERS);
+}
+
+/**
+ * Criar novo Usuário
+ */
+export async function createUser(input: UserInput): Promise<CreateResponse> {
+  return post<CreateResponse>(API_ACTIONS.CREATE_USER, input);
+}
+
+/**
+ * Deletar Usuário
+ */
+export async function deleteUser(id: string): Promise<DeleteResponse> {
+  return post<DeleteResponse>(API_ACTIONS.DELETE_USER, { id });
+}
+
+/**
+ * Ativar/desativar Usuário
+ */
+export async function toggleUser(id: string): Promise<ToggleResponse> {
+  return post<ToggleResponse>(API_ACTIONS.TOGGLE_USER, { id });
 }
 
 // ===== HELPERS =====

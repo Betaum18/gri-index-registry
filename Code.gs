@@ -1,0 +1,538 @@
+/**
+ * GRI INDEX REGISTRY - APPS SCRIPT BACKEND
+ * Backend completo para o sistema de registro GRI
+ */
+
+// CONFIGURACOES
+const SHEET_NAME_REGISTROS = 'Registros';
+const SHEET_NAME_USUARIOS = 'Usuarios';
+const SHEET_NAME_QRUS = 'QRUs';
+const SHEET_NAME_PASTAS = 'Pastas';
+
+// ENDPOINT PRINCIPAL
+function doGet(e) {
+  try {
+    const action = e.parameter.action;
+    const dataParam = e.parameter.data;
+    let result;
+
+    switch(action) {
+      case 'login':
+        result = login(dataParam ? JSON.parse(dataParam) : {});
+        break;
+
+      case 'getRegistrations':
+        result = getRegistrations();
+        break;
+
+      case 'createRegistration':
+        result = createRegistration(dataParam ? JSON.parse(dataParam) : {});
+        break;
+
+      case 'updateRegistration':
+        result = updateRegistration(dataParam ? JSON.parse(dataParam) : {});
+        break;
+
+      case 'deleteRegistration':
+        result = deleteRegistration(dataParam ? JSON.parse(dataParam) : {});
+        break;
+
+      case 'checkPassport':
+        result = checkPassportExists(e.parameter.passport);
+        break;
+
+      case 'getStats':
+        result = getStats();
+        break;
+
+      case 'getQRUs':
+        result = getQRUs();
+        break;
+
+      case 'createQRU':
+        result = createQRU(dataParam ? JSON.parse(dataParam) : {});
+        break;
+
+      case 'deleteQRU':
+        result = deleteQRU(dataParam ? JSON.parse(dataParam) : {});
+        break;
+
+      case 'toggleQRU':
+        result = toggleQRU(dataParam ? JSON.parse(dataParam) : {});
+        break;
+
+      case 'getPastas':
+        result = getPastas();
+        break;
+
+      case 'createPasta':
+        result = createPasta(dataParam ? JSON.parse(dataParam) : {});
+        break;
+
+      case 'deletePasta':
+        result = deletePasta(dataParam ? JSON.parse(dataParam) : {});
+        break;
+
+      case 'togglePasta':
+        result = togglePasta(dataParam ? JSON.parse(dataParam) : {});
+        break;
+
+      case 'getUsers':
+        result = getUsers();
+        break;
+
+      case 'createUser':
+        result = createUser(dataParam ? JSON.parse(dataParam) : {});
+        break;
+
+      case 'deleteUser':
+        result = deleteUser(dataParam ? JSON.parse(dataParam) : {});
+        break;
+
+      case 'toggleUser':
+        result = toggleUser(dataParam ? JSON.parse(dataParam) : {});
+        break;
+
+      default:
+        result = { error: 'Acao invalida: ' + action };
+    }
+
+    return ContentService
+      .createTextOutput(JSON.stringify(result))
+      .setMimeType(ContentService.MimeType.JSON);
+
+  } catch (error) {
+    return ContentService
+      .createTextOutput(JSON.stringify({ error: error.toString() }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+// FUNCOES DE AUTENTICACAO
+function login(data) {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME_USUARIOS);
+  const allData = sheet.getDataRange().getValues();
+
+  if (!data.username || !data.password) {
+    return { success: false, error: 'Usuario e senha sao obrigatorios' };
+  }
+
+  for (let i = 1; i < allData.length; i++) {
+    const [id, usuario, senhaHash, nomeCompleto, ativo] = allData[i];
+
+    if (usuario === data.username && (ativo === true || ativo === 'TRUE' || ativo === 'true')) {
+      if (senhaHash === hashPassword(data.password)) {
+        return {
+          success: true,
+          user: {
+            id: id.toString(),
+            usuario: usuario,
+            nome_completo: nomeCompleto
+          }
+        };
+      }
+    }
+  }
+
+  return { success: false, error: 'Credenciais invalidas' };
+}
+
+function hashPassword(password) {
+  return Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, password)
+    .map(function(byte) {
+      return ('0' + (byte & 0xFF).toString(16)).slice(-2);
+    })
+    .join('');
+}
+
+// FUNCOES DE REGISTROS
+function getRegistrations() {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME_REGISTROS);
+  const data = sheet.getDataRange().getValues();
+  const registros = [];
+
+  for (let i = 1; i < data.length; i++) {
+    const [id, passaporte, nome, qru, pasta, dataReg, imagemUrl, dataCadastro] = data[i];
+
+    registros.push({
+      id: id.toString(),
+      passaporte: passaporte,
+      nome: nome,
+      qru: qru,
+      pasta: pasta,
+      data: dataReg,
+      imagem_url: imagemUrl || '',
+      data_cadastro: dataCadastro
+    });
+  }
+
+  return registros;
+}
+
+function createRegistration(data) {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME_REGISTROS);
+
+  if (!data.passaporte || !data.nome || !data.qru || !data.pasta || !data.data) {
+    return { success: false, error: 'Campos obrigatorios faltando' };
+  }
+
+  const id = Utilities.getUuid();
+  const dataCadastro = new Date().toISOString();
+
+  sheet.appendRow([
+    id,
+    data.passaporte,
+    data.nome,
+    data.qru,
+    data.pasta,
+    data.data,
+    data.imagem_url || '',
+    dataCadastro
+  ]);
+
+  return { success: true, id: id };
+}
+
+function updateRegistration(data) {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME_REGISTROS);
+  const allData = sheet.getDataRange().getValues();
+
+  if (!data.id) {
+    return { success: false, error: 'ID nao fornecido' };
+  }
+
+  for (let i = 1; i < allData.length; i++) {
+    if (allData[i][0].toString() === data.id.toString()) {
+      if (data.passaporte !== undefined) sheet.getRange(i + 1, 2).setValue(data.passaporte);
+      if (data.nome !== undefined) sheet.getRange(i + 1, 3).setValue(data.nome);
+      if (data.qru !== undefined) sheet.getRange(i + 1, 4).setValue(data.qru);
+      if (data.pasta !== undefined) sheet.getRange(i + 1, 5).setValue(data.pasta);
+      if (data.data !== undefined) sheet.getRange(i + 1, 6).setValue(data.data);
+      if (data.imagem_url !== undefined) sheet.getRange(i + 1, 7).setValue(data.imagem_url);
+
+      return { success: true, message: 'Registro atualizado com sucesso' };
+    }
+  }
+
+  return { success: false, error: 'Registro nao encontrado' };
+}
+
+function deleteRegistration(data) {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME_REGISTROS);
+  const allData = sheet.getDataRange().getValues();
+
+  if (!data.id) {
+    return { success: false, error: 'ID nao fornecido' };
+  }
+
+  for (let i = 1; i < allData.length; i++) {
+    if (allData[i][0].toString() === data.id.toString()) {
+      sheet.deleteRow(i + 1);
+      return { success: true, message: 'Registro deletado com sucesso' };
+    }
+  }
+
+  return { success: false, error: 'Registro nao encontrado' };
+}
+
+function checkPassportExists(passport) {
+  if (!passport || passport.trim() === '') {
+    return { exists: false };
+  }
+
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME_REGISTROS);
+  const data = sheet.getDataRange().getValues();
+
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][1] === passport.trim()) {
+      return { exists: true };
+    }
+  }
+
+  return { exists: false };
+}
+
+function getStats() {
+  const registros = getRegistrations();
+
+  const stats = {
+    total: registros.length,
+    porQRU: {},
+    porPasta: {},
+    porMes: [],
+    ultimos7Dias: 0
+  };
+
+  const hoje = new Date();
+  const seteDiasAtras = new Date(hoje.getTime() - (7 * 24 * 60 * 60 * 1000));
+
+  registros.forEach(function(r) {
+    stats.porQRU[r.qru] = (stats.porQRU[r.qru] || 0) + 1;
+    stats.porPasta[r.pasta] = (stats.porPasta[r.pasta] || 0) + 1;
+
+    const dataCadastro = new Date(r.data_cadastro);
+    if (dataCadastro >= seteDiasAtras) {
+      stats.ultimos7Dias++;
+    }
+  });
+
+  return stats;
+}
+
+// FUNCOES DE QRUs
+function getQRUs() {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME_QRUS);
+  const data = sheet.getDataRange().getValues();
+  const qrus = [];
+
+  for (let i = 1; i < data.length; i++) {
+    const [id, codigo, nome, ativo] = data[i];
+
+    qrus.push({
+      id: id.toString(),
+      codigo: codigo,
+      nome: nome,
+      ativo: ativo === true || ativo === 'TRUE' || ativo === 'true'
+    });
+  }
+
+  return qrus;
+}
+
+function createQRU(data) {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME_QRUS);
+
+  if (!data.codigo || !data.nome) {
+    return { success: false, error: 'Codigo e nome sao obrigatorios' };
+  }
+
+  const id = Utilities.getUuid();
+
+  sheet.appendRow([
+    id,
+    data.codigo,
+    data.nome,
+    true
+  ]);
+
+  return { success: true, id: id };
+}
+
+function deleteQRU(data) {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME_QRUS);
+  const allData = sheet.getDataRange().getValues();
+
+  if (!data.id) {
+    return { success: false, error: 'ID nao fornecido' };
+  }
+
+  for (let i = 1; i < allData.length; i++) {
+    if (allData[i][0].toString() === data.id.toString()) {
+      sheet.deleteRow(i + 1);
+      return { success: true, message: 'QRU deletado com sucesso' };
+    }
+  }
+
+  return { success: false, error: 'QRU nao encontrado' };
+}
+
+function toggleQRU(data) {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME_QRUS);
+  const allData = sheet.getDataRange().getValues();
+
+  if (!data.id) {
+    return { success: false, error: 'ID nao fornecido' };
+  }
+
+  for (let i = 1; i < allData.length; i++) {
+    if (allData[i][0].toString() === data.id.toString()) {
+      const ativoAtual = allData[i][3];
+      const novoAtivo = !ativoAtual;
+
+      sheet.getRange(i + 1, 4).setValue(novoAtivo);
+
+      return {
+        success: true,
+        ativo: novoAtivo,
+        message: novoAtivo ? 'QRU ativado' : 'QRU desativado'
+      };
+    }
+  }
+
+  return { success: false, error: 'QRU nao encontrado' };
+}
+
+// FUNCOES DE PASTAS
+function getPastas() {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME_PASTAS);
+  const data = sheet.getDataRange().getValues();
+  const pastas = [];
+
+  for (let i = 1; i < data.length; i++) {
+    const [id, codigo, nome, ativo] = data[i];
+
+    pastas.push({
+      id: id.toString(),
+      codigo: codigo,
+      nome: nome,
+      ativo: ativo === true || ativo === 'TRUE' || ativo === 'true'
+    });
+  }
+
+  return pastas;
+}
+
+function createPasta(data) {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME_PASTAS);
+
+  if (!data.codigo || !data.nome) {
+    return { success: false, error: 'Codigo e nome sao obrigatorios' };
+  }
+
+  const id = Utilities.getUuid();
+
+  sheet.appendRow([
+    id,
+    data.codigo,
+    data.nome,
+    true
+  ]);
+
+  return { success: true, id: id };
+}
+
+function deletePasta(data) {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME_PASTAS);
+  const allData = sheet.getDataRange().getValues();
+
+  if (!data.id) {
+    return { success: false, error: 'ID nao fornecido' };
+  }
+
+  for (let i = 1; i < allData.length; i++) {
+    if (allData[i][0].toString() === data.id.toString()) {
+      sheet.deleteRow(i + 1);
+      return { success: true, message: 'Pasta deletada com sucesso' };
+    }
+  }
+
+  return { success: false, error: 'Pasta nao encontrada' };
+}
+
+function togglePasta(data) {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME_PASTAS);
+  const allData = sheet.getDataRange().getValues();
+
+  if (!data.id) {
+    return { success: false, error: 'ID nao fornecido' };
+  }
+
+  for (let i = 1; i < allData.length; i++) {
+    if (allData[i][0].toString() === data.id.toString()) {
+      const ativoAtual = allData[i][3];
+      const novoAtivo = !ativoAtual;
+
+      sheet.getRange(i + 1, 4).setValue(novoAtivo);
+
+      return {
+        success: true,
+        ativo: novoAtivo,
+        message: novoAtivo ? 'Pasta ativada' : 'Pasta desativada'
+      };
+    }
+  }
+
+  return { success: false, error: 'Pasta nao encontrada' };
+}
+
+// FUNCOES DE USUARIOS
+function getUsers() {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME_USUARIOS);
+  const data = sheet.getDataRange().getValues();
+  const users = [];
+
+  for (let i = 1; i < data.length; i++) {
+    const [id, usuario, senhaHash, nomeCompleto, ativo] = data[i];
+
+    users.push({
+      id: id.toString(),
+      usuario: usuario,
+      nome_completo: nomeCompleto,
+      ativo: ativo === true || ativo === 'TRUE' || ativo === 'true'
+    });
+  }
+
+  return users;
+}
+
+function createUser(data) {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME_USUARIOS);
+
+  if (!data.usuario || !data.senha || !data.nome_completo) {
+    return { success: false, error: 'Todos os campos sao obrigatorios' };
+  }
+
+  const allData = sheet.getDataRange().getValues();
+  for (let i = 1; i < allData.length; i++) {
+    if (allData[i][1] === data.usuario) {
+      return { success: false, error: 'Usuario ja existe' };
+    }
+  }
+
+  const id = Utilities.getUuid();
+  const senhaHash = hashPassword(data.senha);
+
+  sheet.appendRow([
+    id,
+    data.usuario,
+    senhaHash,
+    data.nome_completo,
+    true
+  ]);
+
+  return { success: true, id: id };
+}
+
+function deleteUser(data) {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME_USUARIOS);
+  const allData = sheet.getDataRange().getValues();
+
+  if (!data.id) {
+    return { success: false, error: 'ID nao fornecido' };
+  }
+
+  for (let i = 1; i < allData.length; i++) {
+    if (allData[i][0].toString() === data.id.toString()) {
+      sheet.deleteRow(i + 1);
+      return { success: true, message: 'Usuario deletado com sucesso' };
+    }
+  }
+
+  return { success: false, error: 'Usuario nao encontrado' };
+}
+
+function toggleUser(data) {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME_USUARIOS);
+  const allData = sheet.getDataRange().getValues();
+
+  if (!data.id) {
+    return { success: false, error: 'ID nao fornecido' };
+  }
+
+  for (let i = 1; i < allData.length; i++) {
+    if (allData[i][0].toString() === data.id.toString()) {
+      const ativoAtual = allData[i][4];
+      const novoAtivo = !ativoAtual;
+
+      sheet.getRange(i + 1, 5).setValue(novoAtivo);
+
+      return {
+        success: true,
+        ativo: novoAtivo,
+        message: novoAtivo ? 'Usuario ativado' : 'Usuario desativado'
+      };
+    }
+  }
+
+  return { success: false, error: 'Usuario nao encontrado' };
+}

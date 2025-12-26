@@ -11,6 +11,7 @@ import Index from "./pages/Index";
 import Dashboard from "./pages/Dashboard";
 import QRUsAdmin from "./pages/QRUsAdmin";
 import PastasAdmin from "./pages/PastasAdmin";
+import UsersAdmin from "./pages/UsersAdmin";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -54,6 +55,14 @@ const App = () => (
                 element={
                   <ProtectedRoute>
                     <PastasAdmin />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/usuarios"
+                element={
+                  <ProtectedRoute>
+                    <UsersAdmin />
                   </ProtectedRoute>
                 }
               />

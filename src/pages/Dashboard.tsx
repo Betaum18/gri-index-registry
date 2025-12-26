@@ -6,8 +6,11 @@ import { useState } from 'react';
 import { useRegistrations } from '@/hooks/queries/useRegistrations';
 import { usePastas } from '@/hooks/queries/usePastas';
 import { useQRUs } from '@/hooks/queries/useQRUs';
+import { useUpdateRegistration } from '@/hooks/mutations/useUpdateRegistration';
+import { useToast } from '@/hooks/use-toast';
 import Header from '@/components/Header';
 import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
 import {
   Select,
   SelectContent,
@@ -22,8 +25,16 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { Loader2, Search, User, FileText, MapPin, Calendar, X } from 'lucide-react';
+import { Loader2, Search, User, FileText, MapPin, Calendar, X, Pencil } from 'lucide-react';
+import type { Registration } from '@/services/types';
 
 export default function Dashboard() {
   const { data: registrations, isLoading: isLoadingRegistrations } = useRegistrations();
@@ -33,6 +44,21 @@ export default function Dashboard() {
   const [selectedPasta, setSelectedPasta] = useState<string>('all');
   const [selectedQRU, setSelectedQRU] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
+
+  // Edit functionality
+  const [editingRecord, setEditingRecord] = useState<Registration | null>(null);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [editFormData, setEditFormData] = useState({
+    passaporte: '',
+    nome: '',
+    qru: '',
+    pasta: '',
+    data: '',
+    imagem_url: '',
+  });
+
+  const { mutate: updateRegistration, isPending: isUpdating } = useUpdateRegistration();
+  const { toast } = useToast();
 
   // Filtrar registros (case-insensitive e trim)
   const filteredRegistrations = registrations?.filter((reg) => {
@@ -58,6 +84,50 @@ export default function Dashboard() {
   };
 
   const hasActiveFilters = selectedPasta !== 'all' || selectedQRU !== 'all' || searchTerm !== '';
+
+  // Handle edit button click
+  const handleEdit = (registration: Registration) => {
+    setEditingRecord(registration);
+    setEditFormData({
+      passaporte: registration.passaporte,
+      nome: registration.nome,
+      qru: registration.qru,
+      pasta: registration.pasta,
+      data: registration.data,
+      imagem_url: registration.imagem_url || '',
+    });
+    setIsEditDialogOpen(true);
+  };
+
+  // Handle edit form submission
+  const handleEditSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingRecord) return;
+
+    updateRegistration(
+      {
+        id: editingRecord.id,
+        ...editFormData,
+      },
+      {
+        onSuccess: () => {
+          toast({
+            title: 'Registro atualizado com sucesso!',
+            description: 'As alterações foram salvas.',
+          });
+          setIsEditDialogOpen(false);
+          setEditingRecord(null);
+        },
+        onError: (error) => {
+          toast({
+            title: 'Erro ao atualizar registro',
+            description: error instanceof Error ? error.message : 'Tente novamente.',
+            variant: 'destructive',
+          });
+        },
+      }
+    );
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#0f172a] to-[#1e293b]">
@@ -205,15 +275,27 @@ export default function Dashboard() {
                 </div>
 
                 <CardHeader>
-                  <CardTitle className="text-white text-lg">
-                    {registration.nome}
-                  </CardTitle>
-                  <CardDescription className="text-gray-400">
-                    <div className="flex items-center gap-2 mt-1">
-                      <FileText className="h-3 w-3" />
-                      <span className="font-mono">{registration.passaporte}</span>
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <CardTitle className="text-white text-lg">
+                        {registration.nome}
+                      </CardTitle>
+                      <CardDescription className="text-gray-400">
+                        <div className="flex items-center gap-2 mt-1">
+                          <FileText className="h-3 w-3" />
+                          <span className="font-mono">{registration.passaporte}</span>
+                        </div>
+                      </CardDescription>
                     </div>
-                  </CardDescription>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => handleEdit(registration)}
+                      className="text-gray-400 hover:text-[#00ff87] hover:bg-[#00ff87]/10"
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </CardHeader>
 
                 <CardContent className="space-y-2">
@@ -235,6 +317,146 @@ export default function Dashboard() {
           </div>
         )}
       </main>
+
+      {/* Edit Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="bg-[#1e293b] border-gray-700 text-white max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-xl text-white">Editar Registro</DialogTitle>
+            <DialogDescription className="text-gray-400">
+              Faça as alterações necessárias e clique em salvar.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleEditSubmit} className="space-y-4 mt-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Passaporte */}
+              <div>
+                <Label htmlFor="edit-passaporte" className="text-gray-300">
+                  Passaporte
+                </Label>
+                <Input
+                  id="edit-passaporte"
+                  value={editFormData.passaporte}
+                  onChange={(e) =>
+                    setEditFormData({ ...editFormData, passaporte: e.target.value })
+                  }
+                  className="bg-[#0f172a] border-gray-600 text-white mt-1"
+                  required
+                />
+              </div>
+
+              {/* Nome */}
+              <div>
+                <Label htmlFor="edit-nome" className="text-gray-300">
+                  Nome
+                </Label>
+                <Input
+                  id="edit-nome"
+                  value={editFormData.nome}
+                  onChange={(e) =>
+                    setEditFormData({ ...editFormData, nome: e.target.value })
+                  }
+                  className="bg-[#0f172a] border-gray-600 text-white mt-1"
+                  required
+                />
+              </div>
+
+              {/* QRU */}
+              <div>
+                <Label htmlFor="edit-qru" className="text-gray-300">
+                  QRU
+                </Label>
+                <Select
+                  value={editFormData.qru}
+                  onValueChange={(value) =>
+                    setEditFormData({ ...editFormData, qru: value })
+                  }
+                >
+                  <SelectTrigger className="bg-[#0f172a] border-gray-600 text-white mt-1">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-[#1e293b] border-gray-700">
+                    {qrus?.filter(q => q.ativo).map((qru) => (
+                      <SelectItem key={qru.id} value={qru.nome} className="text-white">
+                        {qru.codigo} - {qru.nome}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Pasta */}
+              <div>
+                <Label htmlFor="edit-pasta" className="text-gray-300">
+                  Pasta
+                </Label>
+                <Select
+                  value={editFormData.pasta}
+                  onValueChange={(value) =>
+                    setEditFormData({ ...editFormData, pasta: value })
+                  }
+                >
+                  <SelectTrigger className="bg-[#0f172a] border-gray-600 text-white mt-1">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-[#1e293b] border-gray-700">
+                    {pastas?.filter(p => p.ativo).map((pasta) => (
+                      <SelectItem key={pasta.id} value={pasta.nome} className="text-white">
+                        {pasta.codigo} - {pasta.nome}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Data */}
+              <div className="md:col-span-2">
+                <Label htmlFor="edit-data" className="text-gray-300">
+                  Data
+                </Label>
+                <Input
+                  id="edit-data"
+                  type="date"
+                  value={editFormData.data}
+                  onChange={(e) =>
+                    setEditFormData({ ...editFormData, data: e.target.value })
+                  }
+                  className="bg-[#0f172a] border-gray-600 text-white mt-1"
+                  required
+                />
+              </div>
+            </div>
+
+            {/* Buttons */}
+            <div className="flex justify-end gap-2 pt-4">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsEditDialogOpen(false)}
+                className="border-gray-600 text-gray-300 hover:bg-gray-700"
+                disabled={isUpdating}
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                className="bg-[#00ff87] text-black hover:bg-[#00cc6a]"
+                disabled={isUpdating}
+              >
+                {isUpdating ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Salvando...
+                  </>
+                ) : (
+                  'Salvar Alterações'
+                )}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

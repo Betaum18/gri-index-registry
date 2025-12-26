@@ -32,6 +32,11 @@ const Header = () => {
       icon: FileText,
     },
     {
+      path: "/dashboard",
+      label: "Dashboard",
+      icon: User,
+    },
+    {
       path: "/qrus",
       label: "QRUs",
       icon: MapPin,

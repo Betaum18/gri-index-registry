@@ -8,6 +8,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import ProtectedRoute from "@/components/auth/ProtectedRoute";
 import Login from "./pages/Login";
 import Index from "./pages/Index";
+import Dashboard from "./pages/Dashboard";
 import QRUsAdmin from "./pages/QRUsAdmin";
 import PastasAdmin from "./pages/PastasAdmin";
 import NotFound from "./pages/NotFound";
@@ -29,6 +30,14 @@ const App = () => (
                 element={
                   <ProtectedRoute>
                     <Index />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/dashboard"
+                element={
+                  <ProtectedRoute>
+                    <Dashboard />
                   </ProtectedRoute>
                 }
               />

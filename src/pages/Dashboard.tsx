@@ -34,15 +34,6 @@ export default function Dashboard() {
   const [selectedQRU, setSelectedQRU] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
 
-  // Debug: valores únicos de Pasta e QRU nos registros
-  const uniquePastas = [...new Set(registrations?.map(r => r.pasta) || [])];
-  const uniqueQRUs = [...new Set(registrations?.map(r => r.qru) || [])];
-
-  console.log('Pastas nos registros:', uniquePastas);
-  console.log('Pastas cadastradas:', pastas?.map(p => p.codigo));
-  console.log('QRUs nos registros:', uniqueQRUs);
-  console.log('QRUs cadastrados:', qrus?.map(q => q.codigo));
-
   // Filtrar registros (case-insensitive e trim)
   const filteredRegistrations = registrations?.filter((reg) => {
     const regPasta = (reg.pasta || '').toString().trim().toLowerCase();
@@ -93,22 +84,6 @@ export default function Dashboard() {
               </p>
             </div>
           </div>
-
-          {/* Debug info - valores nos registros */}
-          {uniquePastas.length > 0 && (
-            <div className="mt-4 bg-yellow-900/20 border border-yellow-700/50 rounded-lg p-4">
-              <p className="text-sm text-yellow-300 font-semibold mb-2">
-                ℹ️ Diagnóstico de Dados:
-              </p>
-              <div className="text-xs text-yellow-100 space-y-1">
-                <p><strong>Pastas nos registros:</strong> {uniquePastas.join(', ')}</p>
-                <p><strong>QRUs nos registros:</strong> {uniqueQRUs.join(', ')}</p>
-              </div>
-              <p className="text-xs text-yellow-200 mt-2">
-                💡 Se os filtros não funcionarem, verifique se os códigos acima coincidem com os cadastrados em QRUs e Pastas.
-              </p>
-            </div>
-          )}
         </div>
 
         {/* Filtros */}

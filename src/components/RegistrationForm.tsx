@@ -328,7 +328,7 @@ const RegistrationForm = () => {
                   </SelectItem>
                 ) : (
                   activeQRUs.map((qru) => (
-                    <SelectItem key={qru.id} value={qru.codigo}>
+                    <SelectItem key={qru.id} value={qru.nome}>
                       {qru.codigo} - {qru.nome}
                     </SelectItem>
                   ))
@@ -361,7 +361,7 @@ const RegistrationForm = () => {
                   </SelectItem>
                 ) : (
                   activePastas.map((pasta) => (
-                    <SelectItem key={pasta.id} value={pasta.codigo}>
+                    <SelectItem key={pasta.id} value={pasta.nome}>
                       {pasta.codigo} - {pasta.nome}
                     </SelectItem>
                   ))

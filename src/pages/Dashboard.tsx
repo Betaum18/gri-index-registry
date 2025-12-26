@@ -145,7 +145,7 @@ export default function Dashboard() {
                     Todas as pastas
                   </SelectItem>
                   {pastas?.filter(p => p.ativo).map((pasta) => (
-                    <SelectItem key={pasta.id} value={pasta.codigo} className="text-white">
+                    <SelectItem key={pasta.id} value={pasta.nome} className="text-white">
                       {pasta.codigo} - {pasta.nome}
                     </SelectItem>
                   ))}
@@ -165,7 +165,7 @@ export default function Dashboard() {
                     Todos os QRUs
                   </SelectItem>
                   {qrus?.filter(q => q.ativo).map((qru) => (
-                    <SelectItem key={qru.id} value={qru.codigo} className="text-white">
+                    <SelectItem key={qru.id} value={qru.nome} className="text-white">
                       {qru.codigo} - {qru.nome}
                     </SelectItem>
                   ))}

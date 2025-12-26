@@ -11,6 +11,9 @@ import {
 } from "@/components/ui/select";
 import { toast } from "@/hooks/use-toast";
 import { UserPlus, Shield, FileText, Calendar, MapPin, FolderOpen, ImagePlus, X, Upload } from "lucide-react";
+import { useCreateRegistration } from "@/hooks/mutations/useCreateRegistration";
+import { usePassportCheck } from "@/hooks/queries/usePassportCheck";
+import { getErrorMessage } from "@/services/api.service";
 
 // Opções configuráveis para QRU (podem ser alteradas conforme necessidade)
 const QRU_OPTIONS = [
@@ -46,9 +49,6 @@ interface FormErrors {
   imagem?: string;
 }
 
-// Simula banco de dados local (preparado para integração futura)
-const registeredPassports: Set<string> = new Set();
-
 const RegistrationForm = () => {
   const [formData, setFormData] = useState<FormData>({
     passaporte: "",
@@ -60,10 +60,13 @@ const RegistrationForm = () => {
   });
 
   const [errors, setErrors] = useState<FormErrors>({});
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Hooks de API
+  const { mutate: createRegistration, isPending } = useCreateRegistration();
+  const { data: passportExists } = usePassportCheck(formData.passaporte);
 
   // Atualiza a data automaticamente
   useEffect(() => {
@@ -168,7 +171,7 @@ const RegistrationForm = () => {
       newErrors.passaporte = "Passaporte é obrigatório";
     } else if (!/^\d+$/.test(formData.passaporte)) {
       newErrors.passaporte = "Passaporte deve conter apenas números";
-    } else if (registeredPassports.has(formData.passaporte)) {
+    } else if (passportExists) {
       newErrors.passaporte = "Passaporte já cadastrado no sistema";
     }
 
@@ -195,7 +198,7 @@ const RegistrationForm = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!validateForm()) {
       toast({
         title: "Erro de Validação",
@@ -205,44 +208,46 @@ const RegistrationForm = () => {
       return;
     }
 
-    setIsSubmitting(true);
+    // Preparar dados para envio (sem o campo imagem File, apenas URL se houver)
+    const registrationData = {
+      passaporte: formData.passaporte,
+      nome: formData.nome,
+      qru: formData.qru,
+      pasta: formData.pasta,
+      data: formData.data,
+      imagem_url: '', // Por enquanto vazio, futuramente implementar upload de imagem
+    };
 
-    // Simula envio para API/banco de dados
-    try {
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Adiciona passaporte ao "banco de dados" local
-      registeredPassports.add(formData.passaporte);
+    createRegistration(registrationData, {
+      onSuccess: () => {
+        toast({
+          title: "Cadastro Realizado com Sucesso!",
+          description: `Índice de ${formData.nome} registrado no sistema.`,
+        });
 
-      toast({
-        title: "Cadastro Realizado com Sucesso!",
-        description: `Índice de ${formData.nome} registrado no sistema.`,
-      });
-
-      // Limpa o formulário
-      setFormData({
-        passaporte: "",
-        nome: "",
-        qru: "",
-        pasta: "",
-        data: new Date().toISOString().split("T")[0],
-        imagem: null,
-      });
-      setImagePreview(null);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
-      setErrors({});
-
-    } catch (error) {
-      toast({
-        title: "Erro no Cadastro",
-        description: "Ocorreu um erro ao processar o cadastro. Tente novamente.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsSubmitting(false);
-    }
+        // Limpa o formulário
+        setFormData({
+          passaporte: "",
+          nome: "",
+          qru: "",
+          pasta: "",
+          data: new Date().toISOString().split("T")[0],
+          imagem: null,
+        });
+        setImagePreview(null);
+        if (fileInputRef.current) {
+          fileInputRef.current.value = '';
+        }
+        setErrors({});
+      },
+      onError: (error) => {
+        toast({
+          title: "Erro no Cadastro",
+          description: getErrorMessage(error),
+          variant: "destructive",
+        });
+      },
+    });
   };
 
   const handleInputChange = (field: keyof FormData, value: string) => {
@@ -457,9 +462,9 @@ const RegistrationForm = () => {
               variant="neon"
               size="lg"
               className="w-full animate-pulse-glow"
-              disabled={isSubmitting}
+              disabled={isPending}
             >
-              {isSubmitting ? (
+              {isPending ? (
                 <>
                   <div className="h-4 w-4 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" />
                   Processando...
@@ -477,7 +482,7 @@ const RegistrationForm = () => {
         {/* Footer do Card */}
         <div className="bg-secondary/30 px-6 py-3 border-t border-border/50">
           <p className="text-xs text-muted-foreground text-center">
-            Sistema preparado para integração com API e banco de dados
+            Sistema integrado com Google Sheets via Apps Script
           </p>
         </div>
       </div>

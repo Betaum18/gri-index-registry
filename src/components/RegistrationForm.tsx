@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,7 +10,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "@/hooks/use-toast";
-import { UserPlus, Shield, FileText, Calendar, MapPin, FolderOpen } from "lucide-react";
+import { UserPlus, Shield, FileText, Calendar, MapPin, FolderOpen, ImagePlus, X, Upload } from "lucide-react";
 
 // Opções configuráveis para QRU (podem ser alteradas conforme necessidade)
 const QRU_OPTIONS = [
@@ -35,6 +35,7 @@ interface FormData {
   qru: string;
   pasta: string;
   data: string;
+  imagem: File | null;
 }
 
 interface FormErrors {
@@ -42,6 +43,7 @@ interface FormErrors {
   nome?: string;
   qru?: string;
   pasta?: string;
+  imagem?: string;
 }
 
 // Simula banco de dados local (preparado para integração futura)
@@ -54,16 +56,109 @@ const RegistrationForm = () => {
     qru: "",
     pasta: "",
     data: new Date().toISOString().split("T")[0],
+    imagem: null,
   });
 
   const [errors, setErrors] = useState<FormErrors>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Atualiza a data automaticamente
   useEffect(() => {
     const today = new Date().toISOString().split("T")[0];
     setFormData(prev => ({ ...prev, data: today }));
   }, []);
+
+  // Handler para processar arquivo de imagem
+  const handleImageFile = useCallback((file: File) => {
+    // Valida tipo de arquivo
+    const validTypes = ['image/jpeg', 'image/jpg', 'image/png'];
+    if (!validTypes.includes(file.type)) {
+      toast({
+        title: "Formato inválido",
+        description: "Por favor, selecione um arquivo JPEG ou PNG.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Valida tamanho (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast({
+        title: "Arquivo muito grande",
+        description: "O tamanho máximo permitido é 5MB.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setFormData(prev => ({ ...prev, imagem: file }));
+    setErrors(prev => ({ ...prev, imagem: undefined }));
+
+    // Cria preview
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setImagePreview(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+  }, []);
+
+  // Handler para colar imagem (Ctrl+V)
+  useEffect(() => {
+    const handlePaste = (e: ClipboardEvent) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type.indexOf('image') !== -1) {
+          const file = items[i].getAsFile();
+          if (file) {
+            handleImageFile(file);
+            toast({
+              title: "Imagem colada",
+              description: "A imagem foi adicionada com sucesso.",
+            });
+          }
+          break;
+        }
+      }
+    };
+
+    document.addEventListener('paste', handlePaste);
+    return () => document.removeEventListener('paste', handlePaste);
+  }, [handleImageFile]);
+
+  // Handler para remover imagem
+  const handleRemoveImage = () => {
+    setFormData(prev => ({ ...prev, imagem: null }));
+    setImagePreview(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  // Handlers para drag and drop
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    
+    const files = e.dataTransfer.files;
+    if (files.length > 0) {
+      handleImageFile(files[0]);
+    }
+  };
 
   const validateForm = (): boolean => {
     const newErrors: FormErrors = {};
@@ -131,7 +226,12 @@ const RegistrationForm = () => {
         qru: "",
         pasta: "",
         data: new Date().toISOString().split("T")[0],
+        imagem: null,
       });
+      setImagePreview(null);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
       setErrors({});
 
     } catch (error) {
@@ -271,8 +371,87 @@ const RegistrationForm = () => {
             />
           </div>
 
+          {/* Campo Imagem */}
+          <div className="space-y-2 animate-slide-in" style={{ animationDelay: "0.35s" }}>
+            <Label className="flex items-center gap-2 text-sm font-medium">
+              <ImagePlus className="h-4 w-4 text-primary" />
+              Foto / Documento
+            </Label>
+            
+            {/* Área de upload com drag & drop */}
+            <div
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+              className={`
+                relative border-2 border-dashed rounded-lg transition-all duration-200 cursor-pointer
+                ${isDragging 
+                  ? 'border-primary bg-primary/10' 
+                  : 'border-border hover:border-primary/50 hover:bg-secondary/30'
+                }
+                ${errors.imagem ? 'border-destructive' : ''}
+              `}
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/jpeg,image/jpg,image/png"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) handleImageFile(file);
+                }}
+                className="hidden"
+              />
+
+              {imagePreview ? (
+                /* Preview da imagem */
+                <div className="relative p-4">
+                  <img
+                    src={imagePreview}
+                    alt="Preview"
+                    className="w-full h-40 object-contain rounded-md"
+                  />
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleRemoveImage();
+                    }}
+                    className="absolute top-2 right-2 p-1.5 bg-destructive text-destructive-foreground rounded-full hover:bg-destructive/80 transition-colors"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                  <p className="text-xs text-muted-foreground text-center mt-2">
+                    {formData.imagem?.name}
+                  </p>
+                </div>
+              ) : (
+                /* Área de upload vazia */
+                <div className="flex flex-col items-center justify-center py-8 px-4">
+                  <div className="p-3 bg-secondary rounded-full mb-3">
+                    <Upload className="h-6 w-6 text-primary" />
+                  </div>
+                  <p className="text-sm text-foreground font-medium mb-1">
+                    Arraste uma imagem ou clique aqui
+                  </p>
+                  <p className="text-xs text-muted-foreground text-center">
+                    Aceita JPEG e PNG • Máx. 5MB
+                  </p>
+                  <p className="text-xs text-primary mt-2">
+                    Dica: Você pode colar uma imagem (Ctrl+V)
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {errors.imagem && (
+              <p className="text-sm text-destructive animate-fade-in">{errors.imagem}</p>
+            )}
+          </div>
+
           {/* Botão Cadastrar */}
-          <div className="pt-4 animate-slide-in" style={{ animationDelay: "0.35s" }}>
+          <div className="pt-4 animate-slide-in" style={{ animationDelay: "0.4s" }}>
             <Button
               type="submit"
               variant="neon"

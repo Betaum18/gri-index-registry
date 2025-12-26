@@ -11,8 +11,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Menu, X, LogOut, User, FileText, MapPin, FolderOpen } from "lucide-react";
-import griLogo from "@/assets/gri-logo.png";
-import brasaoInstitucional from "@/assets/brasao-institucional.png";
+import griLogo from "@/assets/gri-logo-new.png";
+import pmLogo from "@/assets/pm-logo-new.png";
 
 const Header = () => {
   const location = useLocation();
@@ -59,12 +59,12 @@ const Header = () => {
           <div className="flex items-center gap-3">
             <img
               src={griLogo}
-              alt="Logo GRI - Grupo de Resposta Imediata"
+              alt="Logo GRI - Grupamento Investigativo"
               className="h-10 sm:h-12 w-10 sm:w-12 object-contain drop-shadow-lg"
             />
             <div className="hidden lg:block">
               <span className="text-xs font-mono text-muted-foreground tracking-wider block">
-                GRUPO DE RESPOSTA IMEDIATA
+                GRUPAMENTO INVESTIGATIVO
               </span>
               <span className="text-xs text-primary font-mono tracking-wider">
                 SISTEMA DE REGISTRO
@@ -81,10 +81,10 @@ const Header = () => {
 
           {/* User menu e menu mobile */}
           <div className="flex items-center gap-3">
-            {/* Brasão - hidden on small screens */}
+            {/* Logo PM - hidden on small screens */}
             <img
-              src={brasaoInstitucional}
-              alt="Brasão Institucional"
+              src={pmLogo}
+              alt="Logo Polícia Militar"
               className="hidden sm:block h-10 sm:h-12 w-10 sm:w-12 object-contain"
             />
 

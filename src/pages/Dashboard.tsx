@@ -71,8 +71,8 @@ export default function Dashboard() {
     const matchQRU = selectedQRU === 'all' || regQRU === selectedQRULower;
     const matchSearch =
       searchTerm === '' ||
-      reg.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      reg.passaporte.toLowerCase().includes(searchTerm.toLowerCase());
+      (reg.nome || '').toString().toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (reg.passaporte || '').toString().toLowerCase().includes(searchTerm.toLowerCase());
 
     return matchPasta && matchQRU && matchSearch;
   }) || [];

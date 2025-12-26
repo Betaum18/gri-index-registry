@@ -5,6 +5,7 @@
 import { useState } from 'react';
 import { useUsers } from '@/hooks/queries/useUsers';
 import { useCreateUser } from '@/hooks/mutations/useCreateUser';
+import { useUpdateUser } from '@/hooks/mutations/useUpdateUser';
 import { useDeleteUser } from '@/hooks/mutations/useDeleteUser';
 import { useToggleUser } from '@/hooks/mutations/useToggleUser';
 import { Button } from '@/components/ui/button';
@@ -27,19 +28,28 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import { Loader2, Plus, Trash2, Power, Eye, EyeOff } from 'lucide-react';
+import { Loader2, Plus, Trash2, Power, Eye, EyeOff, Pencil } from 'lucide-react';
 import Header from '@/components/Header';
 
 export default function UsersAdmin() {
   const { toast } = useToast();
   const { data: users, isLoading } = useUsers();
   const { mutate: createUser, isPending: isCreating } = useCreateUser();
+  const { mutate: updateUser, isPending: isUpdating } = useUpdateUser();
   const { mutate: deleteUser, isPending: isDeleting } = useDeleteUser();
   const { mutate: toggleUser, isPending: isToggling } = useToggleUser();
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [showEditPassword, setShowEditPassword] = useState(false);
+  const [editingUser, setEditingUser] = useState<any>(null);
   const [formData, setFormData] = useState({
+    usuario: '',
+    senha: '',
+    nome_completo: ''
+  });
+  const [editFormData, setEditFormData] = useState({
     usuario: '',
     senha: '',
     nome_completo: ''
@@ -112,6 +122,67 @@ export default function UsersAdmin() {
       onError: (error: any) => {
         toast({
           title: 'Erro ao alterar status',
+          description: error.message || 'Tente novamente',
+          variant: 'destructive',
+        });
+      },
+    });
+  };
+
+  const handleEdit = (user: any) => {
+    setEditingUser(user);
+    setEditFormData({
+      usuario: user.usuario,
+      senha: '',
+      nome_completo: user.nome_completo
+    });
+    setIsEditDialogOpen(true);
+  };
+
+  const handleUpdate = (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!editingUser) return;
+
+    if (!editFormData.usuario.trim() || !editFormData.nome_completo.trim()) {
+      toast({
+        title: 'Campos obrigatórios',
+        description: 'Preencha usuário e nome completo',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (editFormData.senha && editFormData.senha.length < 6) {
+      toast({
+        title: 'Senha muito curta',
+        description: 'A senha deve ter pelo menos 6 caracteres',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const updateData: any = {
+      id: editingUser.id,
+      usuario: editFormData.usuario,
+      nome_completo: editFormData.nome_completo,
+    };
+
+    if (editFormData.senha) {
+      updateData.senha = editFormData.senha;
+    }
+
+    updateUser(updateData, {
+      onSuccess: () => {
+        toast({ title: 'Usuário atualizado com sucesso!' });
+        setEditFormData({ usuario: '', senha: '', nome_completo: '' });
+        setIsEditDialogOpen(false);
+        setShowEditPassword(false);
+        setEditingUser(null);
+      },
+      onError: (error: any) => {
+        toast({
+          title: 'Erro ao atualizar usuário',
           description: error.message || 'Tente novamente',
           variant: 'destructive',
         });
@@ -276,6 +347,15 @@ export default function UsersAdmin() {
                         <Button
                           size="sm"
                           variant="outline"
+                          onClick={() => handleEdit(user)}
+                          className="border-gray-600 text-white hover:bg-gray-700"
+                          title="Editar"
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
                           onClick={() => handleToggle(user.id)}
                           disabled={isToggling}
                           className="border-gray-600 text-white hover:bg-gray-700"
@@ -300,6 +380,98 @@ export default function UsersAdmin() {
             </Table>
           )}
         </div>
+
+        {/* Edit Dialog */}
+        <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+          <DialogContent className="bg-[#1e293b] text-white border-gray-700">
+            <DialogHeader>
+              <DialogTitle>Editar Usuário</DialogTitle>
+              <DialogDescription className="text-gray-400">
+                Altere os dados do usuário. Deixe a senha em branco para manter a atual.
+              </DialogDescription>
+            </DialogHeader>
+
+            <form onSubmit={handleUpdate} className="space-y-4 mt-4">
+              <div>
+                <Label htmlFor="edit-usuario">Usuário (Login)</Label>
+                <Input
+                  id="edit-usuario"
+                  value={editFormData.usuario}
+                  onChange={(e) => setEditFormData({ ...editFormData, usuario: e.target.value })}
+                  placeholder="Ex: joao.silva"
+                  className="bg-[#0f172a] border-gray-600 text-white"
+                  autoComplete="off"
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="edit-senha">Nova Senha (opcional)</Label>
+                <div className="relative">
+                  <Input
+                    id="edit-senha"
+                    type={showEditPassword ? 'text' : 'password'}
+                    value={editFormData.senha}
+                    onChange={(e) => setEditFormData({ ...editFormData, senha: e.target.value })}
+                    placeholder="Deixe em branco para manter a atual"
+                    className="bg-[#0f172a] border-gray-600 text-white pr-10"
+                    autoComplete="new-password"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowEditPassword(!showEditPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white"
+                  >
+                    {showEditPassword ? (
+                      <EyeOff className="h-4 w-4" />
+                    ) : (
+                      <Eye className="h-4 w-4" />
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <Label htmlFor="edit-nome_completo">Nome Completo</Label>
+                <Input
+                  id="edit-nome_completo"
+                  value={editFormData.nome_completo}
+                  onChange={(e) => setEditFormData({ ...editFormData, nome_completo: e.target.value })}
+                  placeholder="Ex: João da Silva"
+                  className="bg-[#0f172a] border-gray-600 text-white"
+                  autoComplete="off"
+                />
+              </div>
+
+              <div className="flex gap-2 justify-end">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setIsEditDialogOpen(false);
+                    setShowEditPassword(false);
+                  }}
+                  className="border-gray-600 text-white hover:bg-gray-700"
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={isUpdating}
+                  className="bg-[#00ff87] text-black hover:bg-[#00cc6e]"
+                >
+                  {isUpdating ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Salvando...
+                    </>
+                  ) : (
+                    'Salvar Alterações'
+                  )}
+                </Button>
+              </div>
+            </form>
+          </DialogContent>
+        </Dialog>
       </main>
     </div>
   );

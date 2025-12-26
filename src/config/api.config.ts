@@ -41,6 +41,7 @@ export const API_ACTIONS = {
   DELETE_PASTA: 'deletePasta',
   TOGGLE_PASTA: 'togglePasta',
   CREATE_USER: 'createUser',
+  UPDATE_USER: 'updateUser',
   DELETE_USER: 'deleteUser',
   TOGGLE_USER: 'toggleUser',
 } as const;

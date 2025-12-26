@@ -22,6 +22,7 @@ import type {
   ToggleResponse,
   UserAdmin,
   UserInput,
+  UserUpdateInput,
 } from './types';
 
 /**
@@ -277,6 +278,13 @@ export async function getUsers(): Promise<UserAdmin[]> {
  */
 export async function createUser(input: UserInput): Promise<CreateResponse> {
   return post<CreateResponse>(API_ACTIONS.CREATE_USER, input);
+}
+
+/**
+ * Atualizar Usuário
+ */
+export async function updateUser(data: UserUpdateInput & { id: string }): Promise<DeleteResponse> {
+  return post<DeleteResponse>(API_ACTIONS.UPDATE_USER, data);
 }
 
 /**

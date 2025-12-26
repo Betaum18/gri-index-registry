@@ -59,6 +59,15 @@ export interface UserInput {
 }
 
 /**
+ * Input para atualizar usuário
+ */
+export interface UserUpdateInput {
+  usuario?: string;
+  senha?: string;
+  nome_completo?: string;
+}
+
+/**
  * QRU (Quadrante de Responsabilidade Urbana)
  */
 export interface QRU {

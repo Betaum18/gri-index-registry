@@ -26,7 +26,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { Loader2, Plus, Trash2, Power } from 'lucide-react';
-import { Header } from '@/components/Header';
+import Header from '@/components/Header';
 
 export default function QRUsAdmin() {
   const { toast } = useToast();

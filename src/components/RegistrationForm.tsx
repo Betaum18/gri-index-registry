@@ -16,6 +16,7 @@ import { usePassportCheck } from "@/hooks/queries/usePassportCheck";
 import { useQRUs } from "@/hooks/queries/useQRUs";
 import { usePastas } from "@/hooks/queries/usePastas";
 import { getErrorMessage } from "@/services/api.service";
+import { uploadImage } from "@/services/image-upload.service";
 
 interface FormData {
   passaporte: string;
@@ -199,14 +200,36 @@ const RegistrationForm = () => {
       return;
     }
 
-    // Preparar dados para envio (sem o campo imagem File, apenas URL se houver)
+    // Upload de imagem se houver
+    let imagemUrl = '';
+    if (formData.imagem) {
+      toast({
+        title: "Fazendo upload da imagem...",
+        description: "Aguarde alguns segundos.",
+      });
+
+      const uploadResult = await uploadImage(formData.imagem);
+
+      if (!uploadResult.success) {
+        toast({
+          title: "Erro no upload da imagem",
+          description: uploadResult.error || "Tente novamente.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      imagemUrl = uploadResult.url || '';
+    }
+
+    // Preparar dados para envio
     const registrationData = {
       passaporte: formData.passaporte,
       nome: formData.nome,
       qru: formData.qru,
       pasta: formData.pasta,
       data: formData.data,
-      imagem_url: '', // Por enquanto vazio, futuramente implementar upload de imagem
+      imagem_url: imagemUrl,
     };
 
     createRegistration(registrationData, {

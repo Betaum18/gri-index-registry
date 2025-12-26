@@ -40,6 +40,42 @@ export interface User {
 }
 
 /**
+ * QRU (Quadrante de Responsabilidade Urbana)
+ */
+export interface QRU {
+  id: string;
+  codigo: string;
+  nome: string;
+  ativo: boolean;
+}
+
+/**
+ * Input para criar novo QRU
+ */
+export interface QRUInput {
+  codigo: string;
+  nome: string;
+}
+
+/**
+ * Pasta
+ */
+export interface Pasta {
+  id: string;
+  codigo: string;
+  nome: string;
+  ativo: boolean;
+}
+
+/**
+ * Input para criar nova Pasta
+ */
+export interface PastaInput {
+  codigo: string;
+  nome: string;
+}
+
+/**
  * Estatísticas do dashboard
  */
 export interface Stats {
@@ -92,6 +128,24 @@ export interface DeleteResponse {
  */
 export interface PassportCheckResponse {
   exists: boolean;
+}
+
+/**
+ * Resposta de criação de QRU/Pasta
+ */
+export interface CreateResponse {
+  success: boolean;
+  id?: string;
+  error?: string;
+}
+
+/**
+ * Resposta de toggle (ativar/desativar)
+ */
+export interface ToggleResponse {
+  success: boolean;
+  ativo?: boolean;
+  error?: string;
 }
 
 /**

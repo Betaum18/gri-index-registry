@@ -8,6 +8,8 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import ProtectedRoute from "@/components/auth/ProtectedRoute";
 import Login from "./pages/Login";
 import Index from "./pages/Index";
+import QRUsAdmin from "./pages/QRUsAdmin";
+import PastasAdmin from "./pages/PastasAdmin";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -27,6 +29,22 @@ const App = () => (
                 element={
                   <ProtectedRoute>
                     <Index />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/qrus"
+                element={
+                  <ProtectedRoute>
+                    <QRUsAdmin />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/pastas"
+                element={
+                  <ProtectedRoute>
+                    <PastasAdmin />
                   </ProtectedRoute>
                 }
               />

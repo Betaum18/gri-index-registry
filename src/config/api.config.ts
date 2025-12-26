@@ -25,11 +25,19 @@ export const API_ACTIONS = {
   GET_REGISTRATIONS: 'getRegistrations',
   GET_STATS: 'getStats',
   CHECK_PASSPORT: 'checkPassport',
+  GET_QRUS: 'getQRUs',
+  GET_PASTAS: 'getPastas',
 
   // POST actions
   LOGIN: 'login',
   CREATE_REGISTRATION: 'createRegistration',
   DELETE_REGISTRATION: 'deleteRegistration',
+  CREATE_QRU: 'createQRU',
+  DELETE_QRU: 'deleteQRU',
+  TOGGLE_QRU: 'toggleQRU',
+  CREATE_PASTA: 'createPasta',
+  DELETE_PASTA: 'deletePasta',
+  TOGGLE_PASTA: 'togglePasta',
 } as const;
 
 // Configurações de cache do React Query (em ms)
@@ -37,4 +45,6 @@ export const CACHE_TIMES = {
   REGISTRATIONS: 2 * 60 * 1000,  // 2 minutos
   STATS: 5 * 60 * 1000,           // 5 minutos
   PASSPORT_CHECK: 30 * 1000,      // 30 segundos
+  QRUS: 10 * 60 * 1000,           // 10 minutos (raramente mudam)
+  PASTAS: 10 * 60 * 1000,         // 10 minutos (raramente mudam)
 } as const;

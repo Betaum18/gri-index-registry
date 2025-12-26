@@ -13,24 +13,9 @@ import { toast } from "@/hooks/use-toast";
 import { UserPlus, Shield, FileText, Calendar, MapPin, FolderOpen, ImagePlus, X, Upload } from "lucide-react";
 import { useCreateRegistration } from "@/hooks/mutations/useCreateRegistration";
 import { usePassportCheck } from "@/hooks/queries/usePassportCheck";
+import { useQRUs } from "@/hooks/queries/useQRUs";
+import { usePastas } from "@/hooks/queries/usePastas";
 import { getErrorMessage } from "@/services/api.service";
-
-// Opções configuráveis para QRU (podem ser alteradas conforme necessidade)
-const QRU_OPTIONS = [
-  { value: "qru1", label: "QRU Alpha" },
-  { value: "qru2", label: "QRU Bravo" },
-  { value: "qru3", label: "QRU Charlie" },
-  { value: "qru4", label: "QRU Delta" },
-  { value: "qru5", label: "QRU Echo" },
-];
-
-// Opções configuráveis para Pasta (podem ser alteradas conforme necessidade)
-const PASTA_OPTIONS = [
-  { value: "pasta1", label: "Pasta Operacional" },
-  { value: "pasta2", label: "Pasta Tática" },
-  { value: "pasta3", label: "Pasta Administrativa" },
-  { value: "pasta4", label: "Pasta Especial" },
-];
 
 interface FormData {
   passaporte: string;
@@ -67,6 +52,12 @@ const RegistrationForm = () => {
   // Hooks de API
   const { mutate: createRegistration, isPending } = useCreateRegistration();
   const { data: passportExists } = usePassportCheck(formData.passaporte);
+  const { data: qrus, isLoading: isLoadingQRUs } = useQRUs();
+  const { data: pastas, isLoading: isLoadingPastas } = usePastas();
+
+  // Filtrar apenas QRUs e Pastas ativos
+  const activeQRUs = qrus?.filter(qru => qru.ativo) || [];
+  const activePastas = pastas?.filter(pasta => pasta.ativo) || [];
 
   // Atualiza a data automaticamente
   useEffect(() => {
@@ -322,16 +313,26 @@ const RegistrationForm = () => {
               <MapPin className="h-4 w-4 text-primary" />
               QRU <span className="text-destructive">*</span>
             </Label>
-            <Select value={formData.qru} onValueChange={(value) => handleInputChange("qru", value)}>
+            <Select
+              value={formData.qru}
+              onValueChange={(value) => handleInputChange("qru", value)}
+              disabled={isLoadingQRUs}
+            >
               <SelectTrigger className={errors.qru ? "border-destructive focus:ring-destructive/50" : ""}>
-                <SelectValue placeholder="Selecione o QRU" />
+                <SelectValue placeholder={isLoadingQRUs ? "Carregando..." : "Selecione o QRU"} />
               </SelectTrigger>
               <SelectContent>
-                {QRU_OPTIONS.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
+                {activeQRUs.length === 0 ? (
+                  <SelectItem value="none" disabled>
+                    Nenhum QRU disponível
                   </SelectItem>
-                ))}
+                ) : (
+                  activeQRUs.map((qru) => (
+                    <SelectItem key={qru.id} value={qru.codigo}>
+                      {qru.codigo} - {qru.nome}
+                    </SelectItem>
+                  ))
+                )}
               </SelectContent>
             </Select>
             {errors.qru && (
@@ -345,16 +346,26 @@ const RegistrationForm = () => {
               <FolderOpen className="h-4 w-4 text-primary" />
               Pasta <span className="text-destructive">*</span>
             </Label>
-            <Select value={formData.pasta} onValueChange={(value) => handleInputChange("pasta", value)}>
+            <Select
+              value={formData.pasta}
+              onValueChange={(value) => handleInputChange("pasta", value)}
+              disabled={isLoadingPastas}
+            >
               <SelectTrigger className={errors.pasta ? "border-destructive focus:ring-destructive/50" : ""}>
-                <SelectValue placeholder="Selecione a Pasta" />
+                <SelectValue placeholder={isLoadingPastas ? "Carregando..." : "Selecione a Pasta"} />
               </SelectTrigger>
               <SelectContent>
-                {PASTA_OPTIONS.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
+                {activePastas.length === 0 ? (
+                  <SelectItem value="none" disabled>
+                    Nenhuma Pasta disponível
                   </SelectItem>
-                ))}
+                ) : (
+                  activePastas.map((pasta) => (
+                    <SelectItem key={pasta.id} value={pasta.codigo}>
+                      {pasta.codigo} - {pasta.nome}
+                    </SelectItem>
+                  ))
+                )}
               </SelectContent>
             </Select>
             {errors.pasta && (

@@ -14,6 +14,12 @@ import type {
   DeleteResponse,
   PassportCheckResponse,
   ApiError,
+  QRU,
+  QRUInput,
+  Pasta,
+  PastaInput,
+  CreateResponse,
+  ToggleResponse,
 } from './types';
 
 /**
@@ -186,6 +192,66 @@ export async function checkPassportExists(passport: string): Promise<boolean> {
  */
 export async function getStats(): Promise<Stats> {
   return get<Stats>(API_ACTIONS.GET_STATS);
+}
+
+// ===== ENDPOINTS DE QRUs =====
+
+/**
+ * Buscar todos os QRUs
+ */
+export async function getQRUs(): Promise<QRU[]> {
+  return get<QRU[]>(API_ACTIONS.GET_QRUS);
+}
+
+/**
+ * Criar novo QRU
+ */
+export async function createQRU(input: QRUInput): Promise<CreateResponse> {
+  return post<CreateResponse>(API_ACTIONS.CREATE_QRU, input);
+}
+
+/**
+ * Deletar QRU
+ */
+export async function deleteQRU(id: string): Promise<DeleteResponse> {
+  return post<DeleteResponse>(API_ACTIONS.DELETE_QRU, { id });
+}
+
+/**
+ * Ativar/desativar QRU
+ */
+export async function toggleQRU(id: string): Promise<ToggleResponse> {
+  return post<ToggleResponse>(API_ACTIONS.TOGGLE_QRU, { id });
+}
+
+// ===== ENDPOINTS DE PASTAS =====
+
+/**
+ * Buscar todas as Pastas
+ */
+export async function getPastas(): Promise<Pasta[]> {
+  return get<Pasta[]>(API_ACTIONS.GET_PASTAS);
+}
+
+/**
+ * Criar nova Pasta
+ */
+export async function createPasta(input: PastaInput): Promise<CreateResponse> {
+  return post<CreateResponse>(API_ACTIONS.CREATE_PASTA, input);
+}
+
+/**
+ * Deletar Pasta
+ */
+export async function deletePasta(id: string): Promise<DeleteResponse> {
+  return post<DeleteResponse>(API_ACTIONS.DELETE_PASTA, { id });
+}
+
+/**
+ * Ativar/desativar Pasta
+ */
+export async function togglePasta(id: string): Promise<ToggleResponse> {
+  return post<ToggleResponse>(API_ACTIONS.TOGGLE_PASTA, { id });
 }
 
 // ===== HELPERS =====

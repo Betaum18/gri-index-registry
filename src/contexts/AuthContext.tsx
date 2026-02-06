@@ -85,44 +85,65 @@ export function AuthProvider({ children }: AuthProviderProps) {
   };
 
   /**
+   * Verifica se o usuário tem os campos de permissão definidos
+   * Usuários antigos (sem esses campos) são tratados como tendo acesso total
+   */
+  const hasPermissionFields = useCallback((): boolean => {
+    if (!user) return false;
+    return 'is_admin' in user;
+  }, [user]);
+
+  /**
    * Verificar se usuário é admin
+   * Usuários antigos (sem campos de permissão) são tratados como admin
    */
   const isAdmin = useCallback((): boolean => {
     if (!user) return false;
+    // Usuário antigo sem campos de permissão = acesso total
+    if (!hasPermissionFields()) return true;
     return user.is_admin === true;
-  }, [user]);
+  }, [user, hasPermissionFields]);
 
   /**
    * Verificar se usuário tem uma permissão específica
    * Admin sempre tem todas as permissões
+   * Usuários antigos (sem campos de permissão) têm todas as permissões
    */
   const hasPermission = useCallback((permission: PermissionKey): boolean => {
     if (!user) return false;
+    // Usuário antigo sem campos de permissão = acesso total
+    if (!hasPermissionFields()) return true;
     if (user.is_admin) return true;
     return user[permission] === true;
-  }, [user]);
+  }, [user, hasPermissionFields]);
 
   /**
    * Verificar se usuário pode acessar uma pasta específica
    * Admin pode acessar todas as pastas
+   * Usuários antigos (sem campos de permissão) podem acessar todas
    */
   const canAccessPasta = useCallback((pastaId: string): boolean => {
     if (!user) return false;
+    // Usuário antigo sem campos de permissão = acesso total
+    if (!hasPermissionFields()) return true;
     if (user.is_admin) return true;
     if (!user.pastas_acesso || !Array.isArray(user.pastas_acesso)) return false;
     return user.pastas_acesso.includes(pastaId);
-  }, [user]);
+  }, [user, hasPermissionFields]);
 
   /**
    * Filtrar lista de pastas para retornar apenas as que o usuário tem acesso
    * Admin vê todas as pastas
+   * Usuários antigos (sem campos de permissão) veem todas
    */
   const getAllowedPastas = useCallback((allPastas: Pasta[]): Pasta[] => {
     if (!user) return [];
+    // Usuário antigo sem campos de permissão = acesso total
+    if (!hasPermissionFields()) return allPastas;
     if (user.is_admin) return allPastas;
     if (!user.pastas_acesso || !Array.isArray(user.pastas_acesso)) return [];
     return allPastas.filter(p => user.pastas_acesso.includes(p.id));
-  }, [user]);
+  }, [user, hasPermissionFields]);
 
   const value: AuthContextType = {
     user,

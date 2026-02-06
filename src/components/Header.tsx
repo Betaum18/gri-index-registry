@@ -69,7 +69,14 @@ const Header = () => {
   ];
 
   // Filtrar links baseado nas permissões do usuário
+  // Se o usuário não tem campos de permissão definidos (usuário antigo), mostrar tudo
+  const userHasPermissionFields = user && 'is_admin' in user;
+
   const navLinks = allNavLinks.filter(link => {
+    // Se usuário não tem campos de permissão, mostrar todos os links (compatibilidade)
+    if (!userHasPermissionFields) {
+      return true;
+    }
     // Se requer permissão específica, verificar
     if (link.requiredPermission) {
       return hasPermission(link.requiredPermission);

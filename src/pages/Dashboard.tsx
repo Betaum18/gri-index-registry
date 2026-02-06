@@ -1,5 +1,5 @@
 /**
- * Página de Dashboard - Visualização de registros por Pasta
+ * Página de Dashboard - Visualização de registros em tabela com seleção múltipla
  */
 
 import { useState } from 'react';
@@ -7,10 +7,12 @@ import { useRegistrations } from '@/hooks/queries/useRegistrations';
 import { usePastas } from '@/hooks/queries/usePastas';
 import { useQRUs } from '@/hooks/queries/useQRUs';
 import { useUpdateRegistration } from '@/hooks/mutations/useUpdateRegistration';
+import { useDeleteRegistration } from '@/hooks/mutations/useDeleteRegistration';
 import { useToast } from '@/hooks/use-toast';
 import Header from '@/components/Header';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Select,
   SelectContent,
@@ -19,12 +21,13 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import {
   Dialog,
   DialogContent,
@@ -32,8 +35,18 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Input } from '@/components/ui/input';
-import { Loader2, Search, User, FileText, MapPin, Calendar, X, Pencil } from 'lucide-react';
+import { Loader2, Search, User, FileText, MapPin, Calendar, X, Pencil, Trash2 } from 'lucide-react';
 import type { Registration } from '@/services/types';
 
 export default function Dashboard() {
@@ -44,6 +57,17 @@ export default function Dashboard() {
   const [selectedPasta, setSelectedPasta] = useState<string>('all');
   const [selectedQRU, setSelectedQRU] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
+
+  // Selection state
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  // Delete dialog state
+  const [deleteTarget, setDeleteTarget] = useState<{
+    type: 'single' | 'multiple';
+    ids: string[];
+    name?: string;
+  } | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Edit functionality
   const [editingRecord, setEditingRecord] = useState<Registration | null>(null);
@@ -58,6 +82,7 @@ export default function Dashboard() {
   });
 
   const { mutate: updateRegistration, isPending: isUpdating } = useUpdateRegistration();
+  const { mutateAsync: deleteRegistration } = useDeleteRegistration();
   const { toast } = useToast();
 
   // Filtrar registros (case-insensitive e trim)
@@ -84,6 +109,105 @@ export default function Dashboard() {
   };
 
   const hasActiveFilters = selectedPasta !== 'all' || selectedQRU !== 'all' || searchTerm !== '';
+
+  // Selection functions
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(id)) {
+        newSet.delete(id);
+      } else {
+        newSet.add(id);
+      }
+      return newSet;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    const filteredIds = filteredRegistrations.map((r) => r.id);
+    const allSelected = filteredIds.every((id) => selectedIds.has(id));
+
+    if (allSelected) {
+      // Deselect all filtered
+      setSelectedIds((prev) => {
+        const newSet = new Set(prev);
+        filteredIds.forEach((id) => newSet.delete(id));
+        return newSet;
+      });
+    } else {
+      // Select all filtered
+      setSelectedIds((prev) => {
+        const newSet = new Set(prev);
+        filteredIds.forEach((id) => newSet.add(id));
+        return newSet;
+      });
+    }
+  };
+
+  const clearSelection = () => {
+    setSelectedIds(new Set());
+  };
+
+  const isAllSelected =
+    filteredRegistrations.length > 0 &&
+    filteredRegistrations.every((r) => selectedIds.has(r.id));
+
+  const selectedCount = Array.from(selectedIds).filter((id) =>
+    filteredRegistrations.some((r) => r.id === id)
+  ).length;
+
+  // Delete functions
+  const handleDeleteSingle = (registration: Registration) => {
+    setDeleteTarget({
+      type: 'single',
+      ids: [registration.id],
+      name: registration.nome,
+    });
+  };
+
+  const handleDeleteSelected = () => {
+    const idsToDelete = Array.from(selectedIds).filter((id) =>
+      filteredRegistrations.some((r) => r.id === id)
+    );
+    setDeleteTarget({
+      type: 'multiple',
+      ids: idsToDelete,
+    });
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+
+    setIsDeleting(true);
+    try {
+      // Delete all selected records
+      await Promise.all(deleteTarget.ids.map((id) => deleteRegistration(id)));
+
+      toast({
+        title: 'Registro(s) excluído(s) com sucesso!',
+        description:
+          deleteTarget.type === 'single'
+            ? `O registro de ${deleteTarget.name} foi excluído.`
+            : `${deleteTarget.ids.length} registro(s) foram excluídos.`,
+      });
+
+      // Clear selection for deleted items
+      setSelectedIds((prev) => {
+        const newSet = new Set(prev);
+        deleteTarget.ids.forEach((id) => newSet.delete(id));
+        return newSet;
+      });
+    } catch (error) {
+      toast({
+        title: 'Erro ao excluir registro(s)',
+        description: error instanceof Error ? error.message : 'Tente novamente.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsDeleting(false);
+      setDeleteTarget(null);
+    }
+  };
 
   // Handle edit button click
   const handleEdit = (registration: Registration) => {
@@ -153,6 +277,12 @@ export default function Dashboard() {
                 {filteredRegistrations.length}
               </p>
             </div>
+            {selectedCount > 0 && (
+              <div className="bg-[#1e293b] px-4 py-2 rounded-lg border border-[#00ff87]">
+                <p className="text-xs text-gray-400">Selecionados</p>
+                <p className="text-2xl font-bold text-[#00ff87]">{selectedCount}</p>
+              </div>
+            )}
           </div>
         </div>
 
@@ -235,7 +365,35 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Lista de Registros */}
+        {/* Barra de ações em massa */}
+        {selectedCount > 0 && (
+          <div className="bg-[#1e293b] rounded-lg p-4 mb-6 border border-[#00ff87] flex items-center justify-between">
+            <span className="text-white">
+              {selectedCount} registro(s) selecionado(s)
+            </span>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={clearSelection}
+                className="border-gray-600 text-gray-300 hover:bg-gray-700"
+              >
+                Limpar Seleção
+              </Button>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={handleDeleteSelected}
+                className="bg-red-600 hover:bg-red-700"
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Deletar Selecionados ({selectedCount})
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* Tabela de Registros */}
         {isLoadingRegistrations ? (
           <div className="flex items-center justify-center py-12">
             <Loader2 className="h-8 w-8 animate-spin text-[#00ff87]" />
@@ -249,71 +407,107 @@ export default function Dashboard() {
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {filteredRegistrations.map((registration) => (
-              <Card
-                key={registration.id}
-                className="bg-[#1e293b] border-gray-700 hover:border-[#00ff87] transition-all overflow-hidden"
-              >
-                {/* Imagem */}
-                <div className="h-48 bg-[#0f172a] flex items-center justify-center overflow-hidden">
-                  {registration.imagem_url ? (
-                    <img
-                      src={registration.imagem_url}
-                      alt={registration.nome}
-                      className="w-full h-full object-cover"
-                      onError={(e) => {
-                        // Se a imagem falhar ao carregar, mostra o placeholder
-                        e.currentTarget.style.display = 'none';
-                        e.currentTarget.nextElementSibling?.classList.remove('hidden');
-                      }}
+          <div className="bg-[#1e293b] rounded-lg border border-gray-700 overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow className="border-gray-700 hover:bg-[#0f172a]">
+                  <TableHead className="w-12">
+                    <Checkbox
+                      checked={isAllSelected}
+                      onCheckedChange={toggleSelectAll}
+                      className="border-gray-500 data-[state=checked]:bg-[#00ff87] data-[state=checked]:border-[#00ff87]"
                     />
-                  ) : null}
-                  <div className={registration.imagem_url ? 'hidden' : ''}>
-                    <User className="h-16 w-16 text-gray-600" />
-                  </div>
-                </div>
-
-                <CardHeader>
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <CardTitle className="text-white text-lg">
-                        {registration.nome}
-                      </CardTitle>
-                      <CardDescription className="text-gray-400">
-                        <div className="flex items-center gap-2 mt-1">
-                          <FileText className="h-3 w-3" />
-                          <span className="font-mono">{registration.passaporte}</span>
-                        </div>
-                      </CardDescription>
-                    </div>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => handleEdit(registration)}
-                      className="text-gray-400 hover:text-[#00ff87] hover:bg-[#00ff87]/10"
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </CardHeader>
-
-                <CardContent className="space-y-2">
-                  <div className="flex items-center gap-2 text-sm text-gray-300">
-                    <MapPin className="h-4 w-4 text-[#00ff87]" />
-                    <span>{registration.qru}</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm text-gray-300">
-                    <FileText className="h-4 w-4 text-[#00ff87]" />
-                    <span>{registration.pasta}</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm text-gray-300">
-                    <Calendar className="h-4 w-4 text-[#00ff87]" />
-                    <span>{new Date(registration.data).toLocaleDateString('pt-BR')}</span>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+                  </TableHead>
+                  <TableHead className="w-16 text-gray-400">Foto</TableHead>
+                  <TableHead className="text-gray-400">Nome</TableHead>
+                  <TableHead className="text-gray-400">Passaporte</TableHead>
+                  <TableHead className="text-gray-400">QRU</TableHead>
+                  <TableHead className="text-gray-400">Pasta</TableHead>
+                  <TableHead className="text-gray-400">Data</TableHead>
+                  <TableHead className="w-24 text-gray-400">Ações</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredRegistrations.map((registration) => (
+                  <TableRow
+                    key={registration.id}
+                    className="border-gray-700 hover:bg-[#0f172a]"
+                    data-state={selectedIds.has(registration.id) ? 'selected' : undefined}
+                  >
+                    <TableCell>
+                      <Checkbox
+                        checked={selectedIds.has(registration.id)}
+                        onCheckedChange={() => toggleSelect(registration.id)}
+                        className="border-gray-500 data-[state=checked]:bg-[#00ff87] data-[state=checked]:border-[#00ff87]"
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <div className="w-10 h-10 rounded-full bg-[#0f172a] flex items-center justify-center overflow-hidden">
+                        {registration.imagem_url ? (
+                          <img
+                            src={registration.imagem_url}
+                            alt={registration.nome}
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              e.currentTarget.style.display = 'none';
+                              e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                            }}
+                          />
+                        ) : null}
+                        <User className={registration.imagem_url ? 'hidden' : 'h-5 w-5 text-gray-600'} />
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-white font-medium">
+                      {registration.nome}
+                    </TableCell>
+                    <TableCell>
+                      <span className="font-mono text-gray-300 flex items-center gap-2">
+                        <FileText className="h-3 w-3 text-[#00ff87]" />
+                        {registration.passaporte}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <span className="text-gray-300 flex items-center gap-2">
+                        <MapPin className="h-3 w-3 text-[#00ff87]" />
+                        {registration.qru}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <span className="text-gray-300 flex items-center gap-2">
+                        <FileText className="h-3 w-3 text-[#00ff87]" />
+                        {registration.pasta}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <span className="text-gray-300 flex items-center gap-2">
+                        <Calendar className="h-3 w-3 text-[#00ff87]" />
+                        {new Date(registration.data).toLocaleDateString('pt-BR')}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleEdit(registration)}
+                          className="text-gray-400 hover:text-[#00ff87] hover:bg-[#00ff87]/10 h-8 w-8 p-0"
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleDeleteSingle(registration)}
+                          className="text-gray-400 hover:text-red-500 hover:bg-red-500/10 h-8 w-8 p-0"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           </div>
         )}
       </main>
@@ -457,6 +651,42 @@ export default function Dashboard() {
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteTarget !== null} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent className="bg-[#1e293b] border-gray-700">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-white">Confirmar Exclusão</AlertDialogTitle>
+            <AlertDialogDescription className="text-gray-400">
+              {deleteTarget?.type === 'single'
+                ? `Tem certeza que deseja excluir o registro de "${deleteTarget.name}"? Esta ação não pode ser desfeita.`
+                : `Tem certeza que deseja excluir ${deleteTarget?.ids.length} registro(s)? Esta ação não pode ser desfeita.`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              className="border-gray-600 text-gray-300 hover:bg-gray-700 hover:text-white"
+              disabled={isDeleting}
+            >
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDelete}
+              className="bg-red-600 text-white hover:bg-red-700"
+              disabled={isDeleting}
+            >
+              {isDeleting ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Excluindo...
+                </>
+              ) : (
+                'Excluir'
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

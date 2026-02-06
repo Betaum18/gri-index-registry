@@ -1,0 +1,238 @@
+/**
+ * Página de Detalhes do Passaporte
+ * Mostra todos os registros de um passaporte específico
+ */
+
+import { useMemo } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { useRegistrations } from '@/hooks/queries/useRegistrations';
+import { useAuth } from '@/contexts/AuthContext';
+import Header from '@/components/Header';
+import { Button } from '@/components/ui/button';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import { Loader2, ArrowLeft, User, FileText, MapPin, Calendar, FolderOpen } from 'lucide-react';
+
+export default function PassportDetails() {
+  const { passaporte } = useParams<{ passaporte: string }>();
+  const navigate = useNavigate();
+  const { data: registrations, isLoading } = useRegistrations();
+  const { getAllowedPastas } = useAuth();
+
+  // Filtrar registros pelo passaporte
+  const passportRegistrations = useMemo(() => {
+    if (!registrations || !passaporte) return [];
+
+    return registrations
+      .filter((reg) => reg.passaporte === passaporte)
+      .sort((a, b) => {
+        // Ordenar por data de cadastro (mais recente primeiro)
+        const dateA = new Date(a.data_cadastro || a.data).getTime();
+        const dateB = new Date(b.data_cadastro || b.data).getTime();
+        return dateB - dateA;
+      });
+  }, [registrations, passaporte]);
+
+  // Pegar a foto mais recente (primeiro item após ordenação)
+  const latestPhoto = passportRegistrations.find((reg) => reg.imagem_url)?.imagem_url;
+
+  // Pegar o nome do primeiro registro
+  const personName = passportRegistrations[0]?.nome || 'Desconhecido';
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-[#0f172a] to-[#1e293b]">
+        <Header />
+        <main className="container mx-auto px-4 py-8">
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-[#00ff87]" />
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  if (passportRegistrations.length === 0) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-[#0f172a] to-[#1e293b]">
+        <Header />
+        <main className="container mx-auto px-4 py-8">
+          <Button
+            variant="outline"
+            onClick={() => navigate('/dashboard')}
+            className="mb-6 border-gray-600 text-gray-300 hover:bg-gray-700"
+          >
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Voltar para Dashboard
+          </Button>
+          <div className="text-center py-12">
+            <p className="text-gray-400 text-lg">
+              Nenhum registro encontrado para o passaporte {passaporte}.
+            </p>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-b from-[#0f172a] to-[#1e293b]">
+      <Header />
+
+      <main className="container mx-auto px-4 py-8">
+        {/* Botão Voltar */}
+        <Button
+          variant="outline"
+          onClick={() => navigate('/dashboard')}
+          className="mb-6 border-gray-600 text-gray-300 hover:bg-gray-700"
+        >
+          <ArrowLeft className="h-4 w-4 mr-2" />
+          Voltar para Dashboard
+        </Button>
+
+        {/* Card principal com foto e informações */}
+        <div className="bg-[#1e293b] rounded-lg border border-gray-700 p-6 mb-8">
+          <div className="flex flex-col md:flex-row gap-8">
+            {/* Foto */}
+            <div className="flex-shrink-0">
+              <div className="w-48 h-48 md:w-64 md:h-64 rounded-lg bg-[#0f172a] flex items-center justify-center overflow-hidden border-2 border-gray-700">
+                {latestPhoto ? (
+                  <img
+                    src={latestPhoto}
+                    alt={personName}
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      e.currentTarget.style.display = 'none';
+                      e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                    }}
+                  />
+                ) : null}
+                <User className={latestPhoto ? 'hidden' : 'h-24 w-24 text-gray-600'} />
+              </div>
+              {latestPhoto && (
+                <p className="text-xs text-gray-500 text-center mt-2">Foto mais recente</p>
+              )}
+            </div>
+
+            {/* Informações */}
+            <div className="flex-1">
+              <h1 className="text-3xl font-bold text-white mb-2">{personName}</h1>
+
+              <div className="flex items-center gap-2 text-gray-400 mb-6">
+                <FileText className="h-5 w-5 text-[#00ff87]" />
+                <span className="font-mono text-xl">Passaporte: {passaporte}</span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="bg-[#0f172a] p-4 rounded-lg border border-gray-700">
+                  <p className="text-xs text-gray-400 mb-1">Total de Registros</p>
+                  <p className="text-2xl font-bold text-[#00ff87]">
+                    {passportRegistrations.length}
+                  </p>
+                </div>
+
+                <div className="bg-[#0f172a] p-4 rounded-lg border border-gray-700">
+                  <p className="text-xs text-gray-400 mb-1">Primeiro Registro</p>
+                  <p className="text-lg font-bold text-white">
+                    {new Date(
+                      passportRegistrations[passportRegistrations.length - 1]?.data
+                    ).toLocaleDateString('pt-BR')}
+                  </p>
+                </div>
+
+                <div className="bg-[#0f172a] p-4 rounded-lg border border-gray-700">
+                  <p className="text-xs text-gray-400 mb-1">Último Registro</p>
+                  <p className="text-lg font-bold text-white">
+                    {new Date(passportRegistrations[0]?.data).toLocaleDateString('pt-BR')}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Tabela de histórico */}
+        <div className="bg-[#1e293b] rounded-lg border border-gray-700 overflow-hidden">
+          <div className="p-4 border-b border-gray-700">
+            <h2 className="text-xl font-semibold text-white">Histórico de Registros</h2>
+            <p className="text-sm text-gray-400">
+              Todos os registros ordenados do mais recente para o mais antigo
+            </p>
+          </div>
+
+          <Table>
+            <TableHeader>
+              <TableRow className="border-gray-700 hover:bg-[#0f172a]">
+                <TableHead className="w-16 text-gray-400">Foto</TableHead>
+                <TableHead className="text-gray-400">QRU</TableHead>
+                <TableHead className="text-gray-400">Pasta</TableHead>
+                <TableHead className="text-gray-400">Data do Registro</TableHead>
+                <TableHead className="text-gray-400">Data de Cadastro</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {passportRegistrations.map((registration, index) => (
+                <TableRow
+                  key={registration.id}
+                  className={`border-gray-700 hover:bg-[#0f172a] ${
+                    index === 0 ? 'bg-[#00ff87]/5' : ''
+                  }`}
+                >
+                  <TableCell>
+                    <div className="w-10 h-10 rounded-full bg-[#0f172a] flex items-center justify-center overflow-hidden">
+                      {registration.imagem_url ? (
+                        <img
+                          src={registration.imagem_url}
+                          alt={registration.nome}
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            e.currentTarget.style.display = 'none';
+                            e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                          }}
+                        />
+                      ) : null}
+                      <User
+                        className={registration.imagem_url ? 'hidden' : 'h-5 w-5 text-gray-600'}
+                      />
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <span className="text-gray-300 flex items-center gap-2">
+                      <MapPin className="h-3 w-3 text-[#00ff87]" />
+                      {registration.qru}
+                    </span>
+                  </TableCell>
+                  <TableCell>
+                    <span className="text-gray-300 flex items-center gap-2">
+                      <FolderOpen className="h-3 w-3 text-[#00ff87]" />
+                      {registration.pasta}
+                    </span>
+                  </TableCell>
+                  <TableCell>
+                    <span className="text-gray-300 flex items-center gap-2">
+                      <Calendar className="h-3 w-3 text-[#00ff87]" />
+                      {new Date(registration.data).toLocaleDateString('pt-BR')}
+                    </span>
+                  </TableCell>
+                  <TableCell>
+                    <span className="text-gray-400 text-sm">
+                      {registration.data_cadastro
+                        ? new Date(registration.data_cadastro).toLocaleString('pt-BR')
+                        : '-'}
+                    </span>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      </main>
+    </div>
+  );
+}

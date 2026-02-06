@@ -9,6 +9,7 @@ import ProtectedRoute from "@/components/auth/ProtectedRoute";
 import Login from "./pages/Login";
 import Index from "./pages/Index";
 import Dashboard from "./pages/Dashboard";
+import PassportDetails from "./pages/PassportDetails";
 import QRUsAdmin from "./pages/QRUsAdmin";
 import PastasAdmin from "./pages/PastasAdmin";
 import UsersAdmin from "./pages/UsersAdmin";
@@ -39,6 +40,14 @@ const App = () => (
                 element={
                   <ProtectedRoute>
                     <Dashboard />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/passaporte/:passaporte"
+                element={
+                  <ProtectedRoute>
+                    <PassportDetails />
                   </ProtectedRoute>
                 }
               />

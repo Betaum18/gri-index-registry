@@ -30,7 +30,7 @@ export default function PassportDetails() {
     if (!registrations || !passaporte) return [];
 
     return registrations
-      .filter((reg) => reg.passaporte === passaporte)
+      .filter((reg) => String(reg.passaporte).trim() === String(passaporte).trim())
       .sort((a, b) => {
         // Ordenar por data de cadastro (mais recente primeiro)
         const dateA = new Date(a.data_cadastro || a.data).getTime();

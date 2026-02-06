@@ -1,6 +1,11 @@
 /**
  * GRI INDEX REGISTRY - APPS SCRIPT BACKEND
  * Backend completo para o sistema de registro GRI
+ *
+ * ESTRUTURA DA SHEET USUARIOS:
+ * A: id | B: usuario | C: senhaHash | D: nomeCompleto | E: ativo
+ * F: is_admin | G: pode_criar | H: pode_editar | I: pode_deletar
+ * J: pode_gerenciar_usuarios | K: pastas_acesso (IDs separados por virgula)
  */
 
 // CONFIGURACOES
@@ -85,6 +90,10 @@ function doGet(e) {
         result = createUser(dataParam ? JSON.parse(dataParam) : {});
         break;
 
+      case 'updateUser':
+        result = updateUser(dataParam ? JSON.parse(dataParam) : {});
+        break;
+
       case 'deleteUser':
         result = deleteUser(dataParam ? JSON.parse(dataParam) : {});
         break;
@@ -108,6 +117,16 @@ function doGet(e) {
   }
 }
 
+// FUNCOES AUXILIARES DE PERMISSAO
+function parseBoolean(value) {
+  return value === true || value === 'TRUE' || value === 'true' || value === '1' || value === 1;
+}
+
+function parsePastasAcesso(value) {
+  if (!value || value === '') return [];
+  return value.toString().split(',').map(function(id) { return id.trim(); }).filter(function(id) { return id !== ''; });
+}
+
 // FUNCOES DE AUTENTICACAO
 function login(data) {
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME_USUARIOS);
@@ -118,16 +137,22 @@ function login(data) {
   }
 
   for (let i = 1; i < allData.length; i++) {
-    const [id, usuario, senhaHash, nomeCompleto, ativo] = allData[i];
+    const [id, usuario, senhaHash, nomeCompleto, ativo, isAdmin, podeCriar, podeEditar, podeDeletar, podeGerenciarUsuarios, pastasAcesso] = allData[i];
 
-    if (usuario === data.username && (ativo === true || ativo === 'TRUE' || ativo === 'true')) {
+    if (usuario === data.username && parseBoolean(ativo)) {
       if (senhaHash === hashPassword(data.password)) {
         return {
           success: true,
           user: {
             id: id.toString(),
             usuario: usuario,
-            nome_completo: nomeCompleto
+            nome_completo: nomeCompleto,
+            is_admin: parseBoolean(isAdmin),
+            pode_criar: parseBoolean(podeCriar),
+            pode_editar: parseBoolean(podeEditar),
+            pode_deletar: parseBoolean(podeDeletar),
+            pode_gerenciar_usuarios: parseBoolean(podeGerenciarUsuarios),
+            pastas_acesso: parsePastasAcesso(pastasAcesso)
           }
         };
       }
@@ -292,7 +317,7 @@ function getQRUs() {
       id: id.toString(),
       codigo: codigo,
       nome: nome,
-      ativo: ativo === true || ativo === 'TRUE' || ativo === 'true'
+      ativo: parseBoolean(ativo)
     });
   }
 
@@ -347,7 +372,7 @@ function toggleQRU(data) {
   for (let i = 1; i < allData.length; i++) {
     if (allData[i][0].toString() === data.id.toString()) {
       const ativoAtual = allData[i][3];
-      const novoAtivo = !ativoAtual;
+      const novoAtivo = !parseBoolean(ativoAtual);
 
       sheet.getRange(i + 1, 4).setValue(novoAtivo);
 
@@ -375,7 +400,7 @@ function getPastas() {
       id: id.toString(),
       codigo: codigo,
       nome: nome,
-      ativo: ativo === true || ativo === 'TRUE' || ativo === 'true'
+      ativo: parseBoolean(ativo)
     });
   }
 
@@ -430,7 +455,7 @@ function togglePasta(data) {
   for (let i = 1; i < allData.length; i++) {
     if (allData[i][0].toString() === data.id.toString()) {
       const ativoAtual = allData[i][3];
-      const novoAtivo = !ativoAtual;
+      const novoAtivo = !parseBoolean(ativoAtual);
 
       sheet.getRange(i + 1, 4).setValue(novoAtivo);
 
@@ -452,13 +477,19 @@ function getUsers() {
   const users = [];
 
   for (let i = 1; i < data.length; i++) {
-    const [id, usuario, senhaHash, nomeCompleto, ativo] = data[i];
+    const [id, usuario, senhaHash, nomeCompleto, ativo, isAdmin, podeCriar, podeEditar, podeDeletar, podeGerenciarUsuarios, pastasAcesso] = data[i];
 
     users.push({
       id: id.toString(),
       usuario: usuario,
       nome_completo: nomeCompleto,
-      ativo: ativo === true || ativo === 'TRUE' || ativo === 'true'
+      ativo: parseBoolean(ativo),
+      is_admin: parseBoolean(isAdmin),
+      pode_criar: parseBoolean(podeCriar),
+      pode_editar: parseBoolean(podeEditar),
+      pode_deletar: parseBoolean(podeDeletar),
+      pode_gerenciar_usuarios: parseBoolean(podeGerenciarUsuarios),
+      pastas_acesso: parsePastasAcesso(pastasAcesso)
     });
   }
 
@@ -469,7 +500,7 @@ function createUser(data) {
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME_USUARIOS);
 
   if (!data.usuario || !data.senha || !data.nome_completo) {
-    return { success: false, error: 'Todos os campos sao obrigatorios' };
+    return { success: false, error: 'Usuario, senha e nome completo sao obrigatorios' };
   }
 
   const allData = sheet.getDataRange().getValues();
@@ -482,15 +513,61 @@ function createUser(data) {
   const id = Utilities.getUuid();
   const senhaHash = hashPassword(data.senha);
 
+  // Converter array de pastas para string separada por virgula
+  const pastasAcessoStr = Array.isArray(data.pastas_acesso) ? data.pastas_acesso.join(',') : (data.pastas_acesso || '');
+
   sheet.appendRow([
     id,
     data.usuario,
     senhaHash,
     data.nome_completo,
-    true
+    true, // ativo
+    data.is_admin === true, // is_admin
+    data.pode_criar === true, // pode_criar
+    data.pode_editar === true, // pode_editar
+    data.pode_deletar === true, // pode_deletar
+    data.pode_gerenciar_usuarios === true, // pode_gerenciar_usuarios
+    pastasAcessoStr // pastas_acesso
   ]);
 
   return { success: true, id: id };
+}
+
+function updateUser(data) {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME_USUARIOS);
+  const allData = sheet.getDataRange().getValues();
+
+  if (!data.id) {
+    return { success: false, error: 'ID nao fornecido' };
+  }
+
+  for (let i = 1; i < allData.length; i++) {
+    if (allData[i][0].toString() === data.id.toString()) {
+      // Atualizar campos basicos
+      if (data.usuario !== undefined) sheet.getRange(i + 1, 2).setValue(data.usuario);
+      if (data.senha !== undefined && data.senha !== '') {
+        sheet.getRange(i + 1, 3).setValue(hashPassword(data.senha));
+      }
+      if (data.nome_completo !== undefined) sheet.getRange(i + 1, 4).setValue(data.nome_completo);
+
+      // Atualizar permissoes
+      if (data.is_admin !== undefined) sheet.getRange(i + 1, 6).setValue(data.is_admin === true);
+      if (data.pode_criar !== undefined) sheet.getRange(i + 1, 7).setValue(data.pode_criar === true);
+      if (data.pode_editar !== undefined) sheet.getRange(i + 1, 8).setValue(data.pode_editar === true);
+      if (data.pode_deletar !== undefined) sheet.getRange(i + 1, 9).setValue(data.pode_deletar === true);
+      if (data.pode_gerenciar_usuarios !== undefined) sheet.getRange(i + 1, 10).setValue(data.pode_gerenciar_usuarios === true);
+
+      // Atualizar pastas de acesso
+      if (data.pastas_acesso !== undefined) {
+        const pastasAcessoStr = Array.isArray(data.pastas_acesso) ? data.pastas_acesso.join(',') : (data.pastas_acesso || '');
+        sheet.getRange(i + 1, 11).setValue(pastasAcessoStr);
+      }
+
+      return { success: true, message: 'Usuario atualizado com sucesso' };
+    }
+  }
+
+  return { success: false, error: 'Usuario nao encontrado' };
 }
 
 function deleteUser(data) {
@@ -522,7 +599,7 @@ function toggleUser(data) {
   for (let i = 1; i < allData.length; i++) {
     if (allData[i][0].toString() === data.id.toString()) {
       const ativoAtual = allData[i][4];
-      const novoAtivo = !ativoAtual;
+      const novoAtivo = !parseBoolean(ativoAtual);
 
       sheet.getRange(i + 1, 5).setValue(novoAtivo);
 

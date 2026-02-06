@@ -14,10 +14,20 @@ import { Menu, X, LogOut, User, FileText, MapPin, FolderOpen, Users } from "luci
 import griLogo from "@/assets/gri-logo-new.png";
 import pmLogo from "@/assets/pm-logo-new.png";
 
+type PermissionKey = 'pode_criar' | 'pode_editar' | 'pode_deletar' | 'pode_gerenciar_usuarios';
+
+interface NavLink {
+  path: string;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+  requiredPermission?: PermissionKey;
+  adminOnly?: boolean;
+}
+
 const Header = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, logout } = useAuth();
+  const { user, logout, hasPermission, isAdmin } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const handleLogout = () => {
@@ -25,33 +35,52 @@ const Header = () => {
     navigate("/login");
   };
 
-  const navLinks = [
+  const allNavLinks: NavLink[] = [
     {
       path: "/",
       label: "Cadastro",
       icon: FileText,
+      requiredPermission: 'pode_criar',
     },
     {
       path: "/dashboard",
       label: "Dashboard",
       icon: User,
+      // Visível para todos os usuários autenticados
     },
     {
       path: "/qrus",
       label: "QRUs",
       icon: MapPin,
+      adminOnly: true,
     },
     {
       path: "/pastas",
       label: "Pastas",
       icon: FolderOpen,
+      adminOnly: true,
     },
     {
       path: "/usuarios",
       label: "Usuários",
       icon: Users,
+      requiredPermission: 'pode_gerenciar_usuarios',
     },
   ];
+
+  // Filtrar links baseado nas permissões do usuário
+  const navLinks = allNavLinks.filter(link => {
+    // Se requer permissão específica, verificar
+    if (link.requiredPermission) {
+      return hasPermission(link.requiredPermission);
+    }
+    // Se é só para admin, verificar
+    if (link.adminOnly) {
+      return isAdmin();
+    }
+    // Sem restrição, mostrar para todos
+    return true;
+  });
 
   const isActive = (path: string) => {
     if (path === "/") {

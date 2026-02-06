@@ -2,12 +2,13 @@
  * Página de Dashboard - Visualização de registros em tabela com seleção múltipla
  */
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useRegistrations } from '@/hooks/queries/useRegistrations';
 import { usePastas } from '@/hooks/queries/usePastas';
 import { useQRUs } from '@/hooks/queries/useQRUs';
 import { useUpdateRegistration } from '@/hooks/mutations/useUpdateRegistration';
 import { useDeleteRegistration } from '@/hooks/mutations/useDeleteRegistration';
+import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import Header from '@/components/Header';
 import { Button } from '@/components/ui/button';
@@ -53,6 +54,17 @@ export default function Dashboard() {
   const { data: registrations, isLoading: isLoadingRegistrations } = useRegistrations();
   const { data: pastas, isLoading: isLoadingPastas } = usePastas();
   const { data: qrus } = useQRUs();
+  const { hasPermission, getAllowedPastas } = useAuth();
+
+  // Permissões do usuário
+  const canEdit = hasPermission('pode_editar');
+  const canDelete = hasPermission('pode_deletar');
+
+  // Filtrar pastas permitidas para o usuário
+  const allowedPastas = useMemo(() => {
+    if (!pastas) return [];
+    return getAllowedPastas(pastas).filter(p => p.ativo);
+  }, [pastas, getAllowedPastas]);
 
   const [selectedPasta, setSelectedPasta] = useState<string>('all');
   const [selectedQRU, setSelectedQRU] = useState<string>('all');
@@ -85,22 +97,33 @@ export default function Dashboard() {
   const { mutateAsync: deleteRegistration } = useDeleteRegistration();
   const { toast } = useToast();
 
-  // Filtrar registros (case-insensitive e trim)
-  const filteredRegistrations = registrations?.filter((reg) => {
-    const regPasta = (reg.pasta || '').toString().trim().toLowerCase();
-    const regQRU = (reg.qru || '').toString().trim().toLowerCase();
-    const selectedPastaLower = selectedPasta.toLowerCase();
-    const selectedQRULower = selectedQRU.toLowerCase();
+  // Filtrar registros (case-insensitive e trim) considerando permissões de pasta
+  const filteredRegistrations = useMemo(() => {
+    if (!registrations) return [];
 
-    const matchPasta = selectedPasta === 'all' || regPasta === selectedPastaLower;
-    const matchQRU = selectedQRU === 'all' || regQRU === selectedQRULower;
-    const matchSearch =
-      searchTerm === '' ||
-      (reg.nome || '').toString().toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (reg.passaporte || '').toString().toLowerCase().includes(searchTerm.toLowerCase());
+    // Nomes das pastas permitidas para comparação
+    const allowedPastaNames = allowedPastas.map(p => p.nome.toLowerCase());
 
-    return matchPasta && matchQRU && matchSearch;
-  }) || [];
+    return registrations.filter((reg) => {
+      const regPasta = (reg.pasta || '').toString().trim().toLowerCase();
+      const regQRU = (reg.qru || '').toString().trim().toLowerCase();
+      const selectedPastaLower = selectedPasta.toLowerCase();
+      const selectedQRULower = selectedQRU.toLowerCase();
+
+      // Primeiro, verificar se o usuário tem acesso a esta pasta
+      const hasAccessToPasta = allowedPastaNames.includes(regPasta);
+      if (!hasAccessToPasta) return false;
+
+      const matchPasta = selectedPasta === 'all' || regPasta === selectedPastaLower;
+      const matchQRU = selectedQRU === 'all' || regQRU === selectedQRULower;
+      const matchSearch =
+        searchTerm === '' ||
+        (reg.nome || '').toString().toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (reg.passaporte || '').toString().toLowerCase().includes(searchTerm.toLowerCase());
+
+      return matchPasta && matchQRU && matchSearch;
+    });
+  }, [registrations, allowedPastas, selectedPasta, selectedQRU, searchTerm]);
 
   const clearFilters = () => {
     setSelectedPasta('all');
@@ -304,7 +327,7 @@ export default function Dashboard() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {/* Filtro de Pasta */}
+            {/* Filtro de Pasta - mostra apenas pastas permitidas */}
             <div>
               <label className="text-sm text-gray-400 mb-2 block">Pasta</label>
               <Select
@@ -319,7 +342,7 @@ export default function Dashboard() {
                   <SelectItem value="all" className="text-white">
                     Todas as pastas
                   </SelectItem>
-                  {pastas?.filter(p => p.ativo).map((pasta) => (
+                  {allowedPastas.map((pasta) => (
                     <SelectItem key={pasta.id} value={pasta.nome} className="text-white">
                       {pasta.codigo} - {pasta.nome}
                     </SelectItem>
@@ -365,8 +388,8 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Barra de ações em massa */}
-        {selectedCount > 0 && (
+        {/* Barra de ações em massa - só aparece se tem permissão de deletar */}
+        {canDelete && selectedCount > 0 && (
           <div className="bg-[#1e293b] rounded-lg p-4 mb-6 border border-[#00ff87] flex items-center justify-between">
             <span className="text-white">
               {selectedCount} registro(s) selecionado(s)
@@ -411,20 +434,24 @@ export default function Dashboard() {
             <Table>
               <TableHeader>
                 <TableRow className="border-gray-700 hover:bg-[#0f172a]">
-                  <TableHead className="w-12">
-                    <Checkbox
-                      checked={isAllSelected}
-                      onCheckedChange={toggleSelectAll}
-                      className="border-gray-500 data-[state=checked]:bg-[#00ff87] data-[state=checked]:border-[#00ff87]"
-                    />
-                  </TableHead>
+                  {canDelete && (
+                    <TableHead className="w-12">
+                      <Checkbox
+                        checked={isAllSelected}
+                        onCheckedChange={toggleSelectAll}
+                        className="border-gray-500 data-[state=checked]:bg-[#00ff87] data-[state=checked]:border-[#00ff87]"
+                      />
+                    </TableHead>
+                  )}
                   <TableHead className="w-16 text-gray-400">Foto</TableHead>
                   <TableHead className="text-gray-400">Nome</TableHead>
                   <TableHead className="text-gray-400">Passaporte</TableHead>
                   <TableHead className="text-gray-400">QRU</TableHead>
                   <TableHead className="text-gray-400">Pasta</TableHead>
                   <TableHead className="text-gray-400">Data</TableHead>
-                  <TableHead className="w-24 text-gray-400">Ações</TableHead>
+                  {(canEdit || canDelete) && (
+                    <TableHead className="w-24 text-gray-400">Ações</TableHead>
+                  )}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -434,13 +461,15 @@ export default function Dashboard() {
                     className="border-gray-700 hover:bg-[#0f172a]"
                     data-state={selectedIds.has(registration.id) ? 'selected' : undefined}
                   >
-                    <TableCell>
-                      <Checkbox
-                        checked={selectedIds.has(registration.id)}
-                        onCheckedChange={() => toggleSelect(registration.id)}
-                        className="border-gray-500 data-[state=checked]:bg-[#00ff87] data-[state=checked]:border-[#00ff87]"
-                      />
-                    </TableCell>
+                    {canDelete && (
+                      <TableCell>
+                        <Checkbox
+                          checked={selectedIds.has(registration.id)}
+                          onCheckedChange={() => toggleSelect(registration.id)}
+                          className="border-gray-500 data-[state=checked]:bg-[#00ff87] data-[state=checked]:border-[#00ff87]"
+                        />
+                      </TableCell>
+                    )}
                     <TableCell>
                       <div className="w-10 h-10 rounded-full bg-[#0f172a] flex items-center justify-center overflow-hidden">
                         {registration.imagem_url ? (
@@ -484,26 +513,32 @@ export default function Dashboard() {
                         {new Date(registration.data).toLocaleDateString('pt-BR')}
                       </span>
                     </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-1">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => handleEdit(registration)}
-                          className="text-gray-400 hover:text-[#00ff87] hover:bg-[#00ff87]/10 h-8 w-8 p-0"
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => handleDeleteSingle(registration)}
-                          className="text-gray-400 hover:text-red-500 hover:bg-red-500/10 h-8 w-8 p-0"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
+                    {(canEdit || canDelete) && (
+                      <TableCell>
+                        <div className="flex items-center gap-1">
+                          {canEdit && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => handleEdit(registration)}
+                              className="text-gray-400 hover:text-[#00ff87] hover:bg-[#00ff87]/10 h-8 w-8 p-0"
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                          )}
+                          {canDelete && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => handleDeleteSingle(registration)}
+                              className="text-gray-400 hover:text-red-500 hover:bg-red-500/10 h-8 w-8 p-0"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
+                      </TableCell>
+                    )}
                   </TableRow>
                 ))}
               </TableBody>
@@ -580,7 +615,7 @@ export default function Dashboard() {
                 </Select>
               </div>
 
-              {/* Pasta */}
+              {/* Pasta - mostra apenas pastas permitidas */}
               <div>
                 <Label htmlFor="edit-pasta" className="text-gray-300">
                   Pasta
@@ -595,7 +630,7 @@ export default function Dashboard() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="bg-[#1e293b] border-gray-700">
-                    {pastas?.filter(p => p.ativo).map((pasta) => (
+                    {allowedPastas.map((pasta) => (
                       <SelectItem key={pasta.id} value={pasta.nome} className="text-white">
                         {pasta.codigo} - {pasta.nome}
                       </SelectItem>

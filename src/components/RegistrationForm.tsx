@@ -17,6 +17,7 @@ import { useQRUs } from "@/hooks/queries/useQRUs";
 import { usePastas } from "@/hooks/queries/usePastas";
 import { getErrorMessage } from "@/services/api.service";
 import { uploadImage } from "@/services/image-upload.service";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface FormData {
   passaporte: string;
@@ -55,10 +56,14 @@ const RegistrationForm = () => {
   const { data: passportExists } = usePassportCheck(formData.passaporte);
   const { data: qrus, isLoading: isLoadingQRUs } = useQRUs();
   const { data: pastas, isLoading: isLoadingPastas } = usePastas();
+  const { getAllowedPastas } = useAuth();
 
   // Filtrar apenas QRUs e Pastas ativos
   const activeQRUs = qrus?.filter(qru => qru.ativo) || [];
-  const activePastas = pastas?.filter(pasta => pasta.ativo) || [];
+  const allActivePastas = pastas?.filter(pasta => pasta.ativo) || [];
+
+  // Filtrar pastas baseado no acesso do usuário
+  const activePastas = getAllowedPastas(allActivePastas);
 
   // Atualiza a data automaticamente
   useEffect(() => {

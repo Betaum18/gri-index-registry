@@ -1,12 +1,14 @@
 /**
  * Contexto de Autenticação
  *
- * Gerencia o estado global de autenticação do usuário
+ * Gerencia o estado global de autenticação do usuário e permissões
  */
 
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import * as api from '@/services/api.service';
-import type { User } from '@/services/types';
+import type { User, UserPermissions, Pasta } from '@/services/types';
+
+type PermissionKey = keyof Omit<UserPermissions, 'pastas_acesso'>;
 
 interface AuthContextType {
   user: User | null;
@@ -14,6 +16,11 @@ interface AuthContextType {
   isLoading: boolean;
   login: (username: string, password: string) => Promise<void>;
   logout: () => void;
+  // Helpers de permissão
+  hasPermission: (permission: PermissionKey) => boolean;
+  canAccessPasta: (pastaId: string) => boolean;
+  getAllowedPastas: (allPastas: Pasta[]) => Pasta[];
+  isAdmin: () => boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -77,12 +84,56 @@ export function AuthProvider({ children }: AuthProviderProps) {
     localStorage.removeItem(AUTH_STORAGE_KEY);
   };
 
+  /**
+   * Verificar se usuário é admin
+   */
+  const isAdmin = useCallback((): boolean => {
+    if (!user) return false;
+    return user.is_admin === true;
+  }, [user]);
+
+  /**
+   * Verificar se usuário tem uma permissão específica
+   * Admin sempre tem todas as permissões
+   */
+  const hasPermission = useCallback((permission: PermissionKey): boolean => {
+    if (!user) return false;
+    if (user.is_admin) return true;
+    return user[permission] === true;
+  }, [user]);
+
+  /**
+   * Verificar se usuário pode acessar uma pasta específica
+   * Admin pode acessar todas as pastas
+   */
+  const canAccessPasta = useCallback((pastaId: string): boolean => {
+    if (!user) return false;
+    if (user.is_admin) return true;
+    if (!user.pastas_acesso || !Array.isArray(user.pastas_acesso)) return false;
+    return user.pastas_acesso.includes(pastaId);
+  }, [user]);
+
+  /**
+   * Filtrar lista de pastas para retornar apenas as que o usuário tem acesso
+   * Admin vê todas as pastas
+   */
+  const getAllowedPastas = useCallback((allPastas: Pasta[]): Pasta[] => {
+    if (!user) return [];
+    if (user.is_admin) return allPastas;
+    if (!user.pastas_acesso || !Array.isArray(user.pastas_acesso)) return [];
+    return allPastas.filter(p => user.pastas_acesso.includes(p.id));
+  }, [user]);
+
   const value: AuthContextType = {
     user,
     isAuthenticated: user !== null,
     isLoading,
     login,
     logout,
+    hasPermission,
+    canAccessPasta,
+    getAllowedPastas,
+    isAdmin,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

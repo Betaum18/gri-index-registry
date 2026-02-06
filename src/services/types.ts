@@ -31,9 +31,21 @@ export interface RegistrationInput {
 }
 
 /**
+ * Permissões do usuário
+ */
+export interface UserPermissions {
+  is_admin: boolean;
+  pode_criar: boolean;
+  pode_editar: boolean;
+  pode_deletar: boolean;
+  pode_gerenciar_usuarios: boolean;
+  pastas_acesso: string[]; // array de IDs de pastas
+}
+
+/**
  * Usuário do sistema (para login/contexto)
  */
-export interface User {
+export interface User extends UserPermissions {
   id: string;
   usuario: string;
   nome_completo: string;
@@ -42,10 +54,7 @@ export interface User {
 /**
  * Usuário completo (para administração)
  */
-export interface UserAdmin {
-  id: string;
-  usuario: string;
-  nome_completo: string;
+export interface UserAdmin extends User {
   ativo: boolean;
 }
 
@@ -56,15 +65,28 @@ export interface UserInput {
   usuario: string;
   senha: string;
   nome_completo: string;
+  is_admin?: boolean;
+  pode_criar?: boolean;
+  pode_editar?: boolean;
+  pode_deletar?: boolean;
+  pode_gerenciar_usuarios?: boolean;
+  pastas_acesso?: string[];
 }
 
 /**
  * Input para atualizar usuário
  */
 export interface UserUpdateInput {
+  id: string;
   usuario?: string;
   senha?: string;
   nome_completo?: string;
+  is_admin?: boolean;
+  pode_criar?: boolean;
+  pode_editar?: boolean;
+  pode_deletar?: boolean;
+  pode_gerenciar_usuarios?: boolean;
+  pastas_acesso?: string[];
 }
 
 /**

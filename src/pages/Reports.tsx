@@ -324,10 +324,13 @@ export default function Reports() {
           drawTableHeader();
         }
 
+        // Fundo alternado - todas as linhas tem fundo
         if (i % 2 === 0) {
-          pdf.setFillColor(15, 23, 42);
-          pdf.rect(margin, yPos, contentWidth, rowHeight, 'F');
+          pdf.setFillColor(15, 23, 42); // azul escuro
+        } else {
+          pdf.setFillColor(30, 41, 59); // azul médio
         }
+        pdf.rect(margin, yPos, contentWidth, rowHeight, 'F');
 
         // Foto
         let photoDrawn = false;
@@ -348,14 +351,14 @@ export default function Reports() {
         }
 
         // Nome
-        pdf.setTextColor(255, 255, 255);
+        pdf.setTextColor(230, 230, 230);
         pdf.setFontSize(11);
         pdf.setFont('helvetica', 'bold');
         const nomeText = person.nome.length > 35 ? person.nome.substring(0, 35) + '...' : person.nome;
         pdf.text(nomeText, margin + 40, yPos + 14);
 
         // Passaporte
-        pdf.setTextColor(0, 255, 135);
+        pdf.setTextColor(0, 200, 100);
         pdf.setFontSize(10);
         pdf.setFont('helvetica', 'normal');
         pdf.text(String(person.passaporte), pageWidth - margin - 5, yPos + 14, { align: 'right' });

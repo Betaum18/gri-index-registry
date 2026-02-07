@@ -108,6 +108,30 @@ export interface QRUInput {
 }
 
 /**
+ * Veículo vinculado a um passaporte
+ */
+export interface Vehicle {
+  id: string;
+  passaporte: string;
+  placa: string;
+  modelo: string;
+  cor: string;
+  imagem_url: string;
+  data_cadastro: string;
+}
+
+/**
+ * Input para criar novo veículo
+ */
+export interface VehicleInput {
+  passaporte: string;
+  placa: string;
+  modelo: string;
+  cor: string;
+  imagem_url?: string;
+}
+
+/**
  * Pasta
  */
 export interface Pasta {

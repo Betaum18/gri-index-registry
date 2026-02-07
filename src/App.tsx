@@ -14,6 +14,7 @@ import QRUsAdmin from "./pages/QRUsAdmin";
 import PastasAdmin from "./pages/PastasAdmin";
 import UsersAdmin from "./pages/UsersAdmin";
 import Reports from "./pages/Reports";
+import Vehicles from "./pages/Vehicles";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -73,6 +74,14 @@ const App = () => (
                 element={
                   <ProtectedRoute>
                     <UsersAdmin />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/veiculos"
+                element={
+                  <ProtectedRoute>
+                    <Vehicles />
                   </ProtectedRoute>
                 }
               />

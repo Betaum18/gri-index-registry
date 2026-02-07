@@ -44,6 +44,11 @@ export const API_ACTIONS = {
   UPDATE_USER: 'updateUser',
   DELETE_USER: 'deleteUser',
   TOGGLE_USER: 'toggleUser',
+
+  // Vehicles
+  GET_VEHICLES: 'getVehicles',
+  CREATE_VEHICLE: 'createVehicle',
+  DELETE_VEHICLE: 'deleteVehicle',
 } as const;
 
 // Configurações de cache do React Query (em ms)
@@ -54,4 +59,5 @@ export const CACHE_TIMES = {
   QRUS: 10 * 60 * 1000,           // 10 minutos (raramente mudam)
   PASTAS: 10 * 60 * 1000,         // 10 minutos (raramente mudam)
   USERS: 10 * 60 * 1000,          // 10 minutos (raramente mudam)
+  VEHICLES: 2 * 60 * 1000,        // 2 minutos
 } as const;

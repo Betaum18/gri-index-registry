@@ -13,6 +13,7 @@ const SHEET_NAME_REGISTROS = 'Registros';
 const SHEET_NAME_USUARIOS = 'Usuarios';
 const SHEET_NAME_QRUS = 'QRUs';
 const SHEET_NAME_PASTAS = 'Pastas';
+const SHEET_NAME_VEICULOS = 'Veiculos';
 
 // ENDPOINT PRINCIPAL
 function doGet(e) {
@@ -100,6 +101,18 @@ function doGet(e) {
 
       case 'toggleUser':
         result = toggleUser(dataParam ? JSON.parse(dataParam) : {});
+        break;
+
+      case 'getVehicles':
+        result = getVehicles();
+        break;
+
+      case 'createVehicle':
+        result = createVehicle(dataParam ? JSON.parse(dataParam) : {});
+        break;
+
+      case 'deleteVehicle':
+        result = deleteVehicle(dataParam ? JSON.parse(dataParam) : {});
         break;
 
       default:
@@ -612,4 +625,88 @@ function toggleUser(data) {
   }
 
   return { success: false, error: 'Usuario nao encontrado' };
+}
+
+// FUNCOES DE VEICULOS
+function getVehicles() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(SHEET_NAME_VEICULOS);
+
+  // Criar aba se nao existir
+  if (!sheet) {
+    sheet = ss.insertSheet(SHEET_NAME_VEICULOS);
+    sheet.appendRow(['id', 'passaporte', 'placa', 'modelo', 'cor', 'imagem_url', 'data_cadastro']);
+    return [];
+  }
+
+  var data = sheet.getDataRange().getValues();
+  var veiculos = [];
+
+  for (var i = 1; i < data.length; i++) {
+    var row = data[i];
+    veiculos.push({
+      id: row[0].toString(),
+      passaporte: row[1].toString(),
+      placa: row[2].toString(),
+      modelo: row[3].toString(),
+      cor: row[4].toString(),
+      imagem_url: row[5] || '',
+      data_cadastro: row[6]
+    });
+  }
+
+  return veiculos;
+}
+
+function createVehicle(data) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(SHEET_NAME_VEICULOS);
+
+  // Criar aba se nao existir
+  if (!sheet) {
+    sheet = ss.insertSheet(SHEET_NAME_VEICULOS);
+    sheet.appendRow(['id', 'passaporte', 'placa', 'modelo', 'cor', 'imagem_url', 'data_cadastro']);
+  }
+
+  if (!data.passaporte || !data.placa || !data.modelo || !data.cor) {
+    return { success: false, error: 'Passaporte, placa, modelo e cor sao obrigatorios' };
+  }
+
+  var id = Utilities.getUuid();
+  var dataCadastro = new Date().toISOString();
+
+  sheet.appendRow([
+    id,
+    data.passaporte,
+    data.placa,
+    data.modelo,
+    data.cor,
+    data.imagem_url || '',
+    dataCadastro
+  ]);
+
+  return { success: true, id: id };
+}
+
+function deleteVehicle(data) {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME_VEICULOS);
+
+  if (!sheet) {
+    return { success: false, error: 'Aba de veiculos nao encontrada' };
+  }
+
+  if (!data.id) {
+    return { success: false, error: 'ID nao fornecido' };
+  }
+
+  var allData = sheet.getDataRange().getValues();
+
+  for (var i = 1; i < allData.length; i++) {
+    if (allData[i][0].toString() === data.id.toString()) {
+      sheet.deleteRow(i + 1);
+      return { success: true, message: 'Veiculo deletado com sucesso' };
+    }
+  }
+
+  return { success: false, error: 'Veiculo nao encontrado' };
 }

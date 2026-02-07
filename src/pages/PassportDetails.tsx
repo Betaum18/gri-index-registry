@@ -6,6 +6,7 @@
 import { useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useRegistrations } from '@/hooks/queries/useRegistrations';
+import { useVehicles } from '@/hooks/queries/useVehicles';
 import { useAuth } from '@/contexts/AuthContext';
 import Header from '@/components/Header';
 import { Button } from '@/components/ui/button';
@@ -17,12 +18,13 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Loader2, ArrowLeft, User, FileText, MapPin, Calendar, FolderOpen, Download } from 'lucide-react';
+import { Loader2, ArrowLeft, User, FileText, MapPin, Calendar, FolderOpen, Download, Car } from 'lucide-react';
 
 export default function PassportDetails() {
   const { passaporte } = useParams<{ passaporte: string }>();
   const navigate = useNavigate();
   const { data: registrations, isLoading } = useRegistrations();
+  const { data: vehicles } = useVehicles();
   const { getAllowedPastas } = useAuth();
 
   // Filtrar registros pelo passaporte
@@ -44,6 +46,14 @@ export default function PassportDetails() {
 
   // Pegar o nome do primeiro registro
   const personName = passportRegistrations[0]?.nome || 'Desconhecido';
+
+  // Veículos vinculados a este passaporte
+  const passportVehicles = useMemo(() => {
+    if (!vehicles || !passaporte) return [];
+    return vehicles.filter(
+      (v) => String(v.passaporte).trim() === String(passaporte).trim()
+    );
+  }, [vehicles, passaporte]);
 
   const handleDownloadPhoto = async (url: string, filename: string) => {
     try {
@@ -271,6 +281,47 @@ export default function PassportDetails() {
             </TableBody>
           </Table>
         </div>
+
+        {/* Veículos vinculados */}
+        {passportVehicles.length > 0 && (
+          <div className="bg-[#1e293b] rounded-lg border border-gray-700 overflow-hidden mt-8">
+            <div className="p-4 border-b border-gray-700">
+              <h2 className="text-xl font-semibold text-white flex items-center gap-2">
+                <Car className="h-5 w-5 text-[#00ff87]" />
+                Veículos Vinculados
+              </h2>
+              <p className="text-sm text-gray-400">
+                {passportVehicles.length} veículo{passportVehicles.length !== 1 ? 's' : ''} registrado{passportVehicles.length !== 1 ? 's' : ''}
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 p-4">
+              {passportVehicles.map((vehicle) => (
+                <div
+                  key={vehicle.id}
+                  className="bg-[#0f172a] rounded-lg border border-gray-700 overflow-hidden"
+                >
+                  <div className="h-40 bg-gray-800 flex items-center justify-center">
+                    {vehicle.imagem_url ? (
+                      <img
+                        src={vehicle.imagem_url}
+                        alt={vehicle.modelo}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <Car className="h-12 w-12 text-gray-600" />
+                    )}
+                  </div>
+                  <div className="p-3">
+                    <p className="text-white font-semibold font-mono text-lg">{vehicle.placa}</p>
+                    <p className="text-gray-300 text-sm">{vehicle.modelo}</p>
+                    <p className="text-gray-400 text-sm">Cor: {vehicle.cor}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </main>
     </div>
   );

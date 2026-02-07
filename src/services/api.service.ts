@@ -23,6 +23,8 @@ import type {
   UserAdmin,
   UserInput,
   UserUpdateInput,
+  Vehicle,
+  VehicleInput,
 } from './types';
 
 /**
@@ -299,6 +301,29 @@ export async function deleteUser(id: string): Promise<DeleteResponse> {
  */
 export async function toggleUser(id: string): Promise<ToggleResponse> {
   return post<ToggleResponse>(API_ACTIONS.TOGGLE_USER, { id });
+}
+
+// ===== ENDPOINTS DE VEÍCULOS =====
+
+/**
+ * Buscar todos os Veículos
+ */
+export async function getVehicles(): Promise<Vehicle[]> {
+  return get<Vehicle[]>(API_ACTIONS.GET_VEHICLES);
+}
+
+/**
+ * Criar novo Veículo
+ */
+export async function createVehicle(input: VehicleInput): Promise<CreateResponse> {
+  return post<CreateResponse>(API_ACTIONS.CREATE_VEHICLE, input);
+}
+
+/**
+ * Deletar Veículo
+ */
+export async function deleteVehicle(id: string): Promise<DeleteResponse> {
+  return post<DeleteResponse>(API_ACTIONS.DELETE_VEHICLE, { id });
 }
 
 // ===== HELPERS =====

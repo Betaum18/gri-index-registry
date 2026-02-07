@@ -17,7 +17,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Loader2, ArrowLeft, User, FileText, MapPin, Calendar, FolderOpen } from 'lucide-react';
+import { Loader2, ArrowLeft, User, FileText, MapPin, Calendar, FolderOpen, Download } from 'lucide-react';
 
 export default function PassportDetails() {
   const { passaporte } = useParams<{ passaporte: string }>();
@@ -44,6 +44,23 @@ export default function PassportDetails() {
 
   // Pegar o nome do primeiro registro
   const personName = passportRegistrations[0]?.nome || 'Desconhecido';
+
+  const handleDownloadPhoto = async (url: string, filename: string) => {
+    try {
+      const response = await fetch(url);
+      const blob = await response.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(blobUrl);
+    } catch {
+      window.open(url, '_blank');
+    }
+  };
 
   if (isLoading) {
     return (
@@ -116,7 +133,18 @@ export default function PassportDetails() {
                 <User className={latestPhoto ? 'hidden' : 'h-24 w-24 text-gray-600'} />
               </div>
               {latestPhoto && (
-                <p className="text-xs text-gray-500 text-center mt-2">Foto mais recente</p>
+                <div className="flex flex-col items-center gap-1 mt-2">
+                  <p className="text-xs text-gray-500">Foto mais recente</p>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleDownloadPhoto(latestPhoto, `foto-${passaporte}-${personName}.jpg`)}
+                    className="border-[#00ff87] text-[#00ff87] hover:bg-[#00ff87]/10 text-xs"
+                  >
+                    <Download className="h-3 w-3 mr-1" />
+                    Baixar Foto
+                  </Button>
+                </div>
               )}
             </div>
 
@@ -185,21 +213,32 @@ export default function PassportDetails() {
                   }`}
                 >
                   <TableCell>
-                    <div className="w-10 h-10 rounded-full bg-[#0f172a] flex items-center justify-center overflow-hidden">
-                      {registration.imagem_url ? (
-                        <img
-                          src={registration.imagem_url}
-                          alt={registration.nome}
-                          className="w-full h-full object-cover"
-                          onError={(e) => {
-                            e.currentTarget.style.display = 'none';
-                            e.currentTarget.nextElementSibling?.classList.remove('hidden');
-                          }}
+                    <div className="flex items-center gap-2">
+                      <div className="w-10 h-10 rounded-full bg-[#0f172a] flex items-center justify-center overflow-hidden">
+                        {registration.imagem_url ? (
+                          <img
+                            src={registration.imagem_url}
+                            alt={registration.nome}
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              e.currentTarget.style.display = 'none';
+                              e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                            }}
+                          />
+                        ) : null}
+                        <User
+                          className={registration.imagem_url ? 'hidden' : 'h-5 w-5 text-gray-600'}
                         />
-                      ) : null}
-                      <User
-                        className={registration.imagem_url ? 'hidden' : 'h-5 w-5 text-gray-600'}
-                      />
+                      </div>
+                      {registration.imagem_url && (
+                        <button
+                          onClick={() => handleDownloadPhoto(registration.imagem_url, `foto-${passaporte}-${registration.data}.jpg`)}
+                          className="text-[#00ff87] hover:text-[#00ff87]/80 transition-colors"
+                          title="Baixar foto"
+                        >
+                          <Download className="h-4 w-4" />
+                        </button>
+                      )}
                     </div>
                   </TableCell>
                   <TableCell>

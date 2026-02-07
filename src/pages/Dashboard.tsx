@@ -27,7 +27,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Input } from '@/components/ui/input';
-import { Loader2, Search, User, FileText, MapPin, X, Eye, AlertTriangle } from 'lucide-react';
+import { Loader2, Search, User, FileText, MapPin, X, Eye, AlertTriangle, Calendar } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 
 interface GroupedPerson {
@@ -58,9 +58,11 @@ export default function Dashboard() {
   const [selectedQRU, setSelectedQRU] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [showMultiplePastas, setShowMultiplePastas] = useState(false);
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
 
   // Verificar se o usuário está pesquisando
-  const isSearching = searchTerm.trim().length >= 2 || selectedPasta !== 'all' || selectedQRU !== 'all' || showMultiplePastas;
+  const isSearching = searchTerm.trim().length >= 2 || selectedPasta !== 'all' || selectedQRU !== 'all' || showMultiplePastas || dateFrom !== '' || dateTo !== '';
 
   // Agrupar registros por passaporte (sem duplicatas)
   const groupedResults = useMemo(() => {
@@ -102,7 +104,12 @@ export default function Dashboard() {
         (reg.nome || '').toString().toLowerCase().includes(searchTerm.toLowerCase()) ||
         (reg.passaporte || '').toString().toLowerCase().includes(searchTerm.toLowerCase());
 
-      return matchPasta && matchQRU && matchSearch;
+      // Filtro de período
+      const regDateStr = (reg.data || '').toString().substring(0, 10);
+      const matchDateFrom = dateFrom === '' || regDateStr >= dateFrom;
+      const matchDateTo = dateTo === '' || regDateStr <= dateTo;
+
+      return matchPasta && matchQRU && matchSearch && matchDateFrom && matchDateTo;
     });
 
     // Agrupar por passaporte
@@ -120,17 +127,24 @@ export default function Dashboard() {
           totalRegistros: 1,
           lastQRU: reg.qru,
           lastPasta: reg.pasta,
-          lastDate: reg.data,
+          lastDate: reg.data_cadastro || reg.data,
           // Usar o mapa completo de pastas quando filtro ativo
           allPastas: showMultiplePastas
             ? (allPastasMap.get(reg.passaporte) || [reg.pasta])
             : [reg.pasta],
-        });
+          _latestPhotoDate: reg.imagem_url ? regDate : 0,
+        } as GroupedPerson & { _latestPhotoDate: number });
       } else {
         existing.totalRegistros++;
         // Coletar pastas únicas (dos resultados filtrados)
         if (!showMultiplePastas && !existing.allPastas.includes(reg.pasta)) {
           existing.allPastas.push(reg.pasta);
+        }
+        // Atualizar foto com a mais recente que tenha imagem
+        const existingPhotoDate = (existing as GroupedPerson & { _latestPhotoDate: number })._latestPhotoDate || 0;
+        if (reg.imagem_url && regDate > existingPhotoDate) {
+          existing.latestPhoto = reg.imagem_url;
+          (existing as GroupedPerson & { _latestPhotoDate: number })._latestPhotoDate = regDate;
         }
         // Atualizar com dados mais recentes
         const existingDate = new Date(existing.lastDate).getTime();
@@ -138,12 +152,7 @@ export default function Dashboard() {
           existing.nome = reg.nome;
           existing.lastQRU = reg.qru;
           existing.lastPasta = reg.pasta;
-          existing.lastDate = reg.data;
-          if (reg.imagem_url) {
-            existing.latestPhoto = reg.imagem_url;
-          }
-        } else if (!existing.latestPhoto && reg.imagem_url) {
-          existing.latestPhoto = reg.imagem_url;
+          existing.lastDate = reg.data_cadastro || reg.data;
         }
       }
     });
@@ -159,16 +168,18 @@ export default function Dashboard() {
       // Ordenar por data mais recente
       return new Date(b.lastDate).getTime() - new Date(a.lastDate).getTime();
     });
-  }, [registrations, allowedPastas, selectedPasta, selectedQRU, searchTerm, isSearching, showMultiplePastas]);
+  }, [registrations, allowedPastas, selectedPasta, selectedQRU, searchTerm, isSearching, showMultiplePastas, dateFrom, dateTo]);
 
   const clearFilters = () => {
     setSelectedPasta('all');
     setSelectedQRU('all');
     setSearchTerm('');
     setShowMultiplePastas(false);
+    setDateFrom('');
+    setDateTo('');
   };
 
-  const hasActiveFilters = selectedPasta !== 'all' || selectedQRU !== 'all' || searchTerm !== '' || showMultiplePastas;
+  const hasActiveFilters = selectedPasta !== 'all' || selectedQRU !== 'all' || searchTerm !== '' || showMultiplePastas || dateFrom !== '' || dateTo !== '';
 
   const handleViewDetails = (passaporte: string) => {
     navigate(`/passaporte/${passaporte}`);
@@ -266,6 +277,32 @@ export default function Dashboard() {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+
+            {/* Filtro de Período */}
+            <div>
+              <label className="text-sm text-gray-400 mb-2 block flex items-center gap-1">
+                <Calendar className="h-3 w-3" />
+                De
+              </label>
+              <Input
+                type="date"
+                value={dateFrom}
+                onChange={(e) => setDateFrom(e.target.value)}
+                className="bg-[#0f172a] border-gray-600 text-white"
+              />
+            </div>
+            <div>
+              <label className="text-sm text-gray-400 mb-2 block flex items-center gap-1">
+                <Calendar className="h-3 w-3" />
+                Até
+              </label>
+              <Input
+                type="date"
+                value={dateTo}
+                onChange={(e) => setDateTo(e.target.value)}
+                className="bg-[#0f172a] border-gray-600 text-white"
+              />
             </div>
 
             {/* Filtro múltiplas pastas + Estatísticas */}

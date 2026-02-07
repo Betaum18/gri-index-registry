@@ -27,7 +27,8 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Input } from '@/components/ui/input';
-import { Loader2, Search, User, FileText, MapPin, X, Eye } from 'lucide-react';
+import { Loader2, Search, User, FileText, MapPin, X, Eye, AlertTriangle } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 
 interface GroupedPerson {
   passaporte: string;
@@ -37,6 +38,7 @@ interface GroupedPerson {
   lastQRU: string;
   lastPasta: string;
   lastDate: string;
+  allPastas: string[];
 }
 
 export default function Dashboard() {
@@ -55,9 +57,10 @@ export default function Dashboard() {
   const [selectedPasta, setSelectedPasta] = useState<string>('all');
   const [selectedQRU, setSelectedQRU] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
+  const [showMultiplePastas, setShowMultiplePastas] = useState(false);
 
   // Verificar se o usuário está pesquisando
-  const isSearching = searchTerm.trim().length >= 2 || selectedPasta !== 'all' || selectedQRU !== 'all';
+  const isSearching = searchTerm.trim().length >= 2 || selectedPasta !== 'all' || selectedQRU !== 'all' || showMultiplePastas;
 
   // Agrupar registros por passaporte (sem duplicatas)
   const groupedResults = useMemo(() => {
@@ -66,7 +69,22 @@ export default function Dashboard() {
     // Nomes das pastas permitidas para comparação
     const allowedPastaNames = allowedPastas.map(p => p.nome.toLowerCase());
 
-    // Primeiro, filtrar os registros
+    // Quando showMultiplePastas está ativo, primeiro mapear TODAS as pastas
+    // de cada passaporte (considerando todas as pastas permitidas)
+    const allPastasMap = new Map<string, string[]>();
+    if (showMultiplePastas) {
+      registrations.forEach((reg) => {
+        const regPasta = (reg.pasta || '').toString().trim().toLowerCase();
+        if (!allowedPastaNames.includes(regPasta)) return;
+        const pastas = allPastasMap.get(reg.passaporte) || [];
+        if (!pastas.includes(reg.pasta)) {
+          pastas.push(reg.pasta);
+        }
+        allPastasMap.set(reg.passaporte, pastas);
+      });
+    }
+
+    // Filtrar os registros
     const filtered = registrations.filter((reg) => {
       const regPasta = (reg.pasta || '').toString().trim().toLowerCase();
       const regQRU = (reg.qru || '').toString().trim().toLowerCase();
@@ -103,9 +121,17 @@ export default function Dashboard() {
           lastQRU: reg.qru,
           lastPasta: reg.pasta,
           lastDate: reg.data,
+          // Usar o mapa completo de pastas quando filtro ativo
+          allPastas: showMultiplePastas
+            ? (allPastasMap.get(reg.passaporte) || [reg.pasta])
+            : [reg.pasta],
         });
       } else {
         existing.totalRegistros++;
+        // Coletar pastas únicas (dos resultados filtrados)
+        if (!showMultiplePastas && !existing.allPastas.includes(reg.pasta)) {
+          existing.allPastas.push(reg.pasta);
+        }
         // Atualizar com dados mais recentes
         const existingDate = new Date(existing.lastDate).getTime();
         if (regDate > existingDate) {
@@ -122,19 +148,27 @@ export default function Dashboard() {
       }
     });
 
-    return Array.from(grouped.values()).sort((a, b) => {
+    let results = Array.from(grouped.values());
+
+    // Filtrar apenas passaportes em múltiplas pastas
+    if (showMultiplePastas) {
+      results = results.filter(p => p.allPastas.length >= 2);
+    }
+
+    return results.sort((a, b) => {
       // Ordenar por data mais recente
       return new Date(b.lastDate).getTime() - new Date(a.lastDate).getTime();
     });
-  }, [registrations, allowedPastas, selectedPasta, selectedQRU, searchTerm, isSearching]);
+  }, [registrations, allowedPastas, selectedPasta, selectedQRU, searchTerm, isSearching, showMultiplePastas]);
 
   const clearFilters = () => {
     setSelectedPasta('all');
     setSelectedQRU('all');
     setSearchTerm('');
+    setShowMultiplePastas(false);
   };
 
-  const hasActiveFilters = selectedPasta !== 'all' || selectedQRU !== 'all' || searchTerm !== '';
+  const hasActiveFilters = selectedPasta !== 'all' || selectedQRU !== 'all' || searchTerm !== '' || showMultiplePastas;
 
   const handleViewDetails = (passaporte: string) => {
     navigate(`/passaporte/${passaporte}`);
@@ -234,8 +268,19 @@ export default function Dashboard() {
               </Select>
             </div>
 
-            {/* Estatísticas da busca */}
-            <div className="flex items-end">
+            {/* Filtro múltiplas pastas + Estatísticas */}
+            <div className="flex flex-col gap-3 justify-end">
+              <Button
+                variant={showMultiplePastas ? 'default' : 'outline'}
+                onClick={() => setShowMultiplePastas(!showMultiplePastas)}
+                className={showMultiplePastas
+                  ? 'bg-amber-600 hover:bg-amber-700 text-white border-amber-600'
+                  : 'border-amber-600 text-amber-400 hover:bg-amber-600/10'
+                }
+              >
+                <AlertTriangle className="h-4 w-4 mr-2" />
+                Múltiplas Pastas
+              </Button>
               {isSearching && (
                 <div className="bg-[#0f172a] px-4 py-2 rounded-lg border border-gray-700 w-full">
                   <p className="text-xs text-gray-400">Resultados encontrados</p>
@@ -327,10 +372,24 @@ export default function Dashboard() {
                       </span>
                     </TableCell>
                     <TableCell>
-                      <span className="text-gray-300 flex items-center gap-2">
-                        <FileText className="h-3 w-3 text-[#00ff87]" />
-                        {person.lastPasta}
-                      </span>
+                      {person.allPastas.length >= 2 ? (
+                        <div className="flex flex-wrap gap-1">
+                          {person.allPastas.map((pasta) => (
+                            <Badge
+                              key={pasta}
+                              variant="outline"
+                              className="border-amber-500/50 text-amber-400 bg-amber-500/10 text-xs"
+                            >
+                              {pasta}
+                            </Badge>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-gray-300 flex items-center gap-2">
+                          <FileText className="h-3 w-3 text-[#00ff87]" />
+                          {person.lastPasta}
+                        </span>
+                      )}
                     </TableCell>
                     <TableCell>
                       <Button

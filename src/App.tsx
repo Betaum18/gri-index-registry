@@ -13,6 +13,7 @@ import PassportDetails from "./pages/PassportDetails";
 import QRUsAdmin from "./pages/QRUsAdmin";
 import PastasAdmin from "./pages/PastasAdmin";
 import UsersAdmin from "./pages/UsersAdmin";
+import Reports from "./pages/Reports";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -72,6 +73,14 @@ const App = () => (
                 element={
                   <ProtectedRoute>
                     <UsersAdmin />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/relatorios"
+                element={
+                  <ProtectedRoute>
+                    <Reports />
                   </ProtectedRoute>
                 }
               />

@@ -1,0 +1,681 @@
+/**
+ * Página de Relatórios - Gera PDF com registros filtrados
+ * Permite selecionar por passaportes múltiplos, pasta ou QRU com filtro de período
+ */
+
+import { useState, useMemo } from 'react';
+import { useRegistrations } from '@/hooks/queries/useRegistrations';
+import { usePastas } from '@/hooks/queries/usePastas';
+import { useQRUs } from '@/hooks/queries/useQRUs';
+import { useAuth } from '@/contexts/AuthContext';
+import Header from '@/components/Header';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Checkbox } from '@/components/ui/checkbox';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import {
+  Loader2,
+  FileDown,
+  Search,
+  User,
+  FileText,
+  Calendar,
+  MapPin,
+  FolderOpen,
+  CheckSquare,
+  X,
+} from 'lucide-react';
+import jsPDF from 'jspdf';
+import type { Registration } from '@/services/types';
+
+type ReportMode = 'passaportes' | 'pasta' | 'qru';
+
+interface GroupedPassport {
+  passaporte: string;
+  nome: string;
+  latestPhoto: string;
+  totalRegistros: number;
+  pastas: string[];
+  qrus: string[];
+}
+
+/**
+ * Converte URL de imagem para base64 data URL
+ */
+async function imageUrlToBase64(url: string): Promise<string | null> {
+  try {
+    const response = await fetch(url);
+    const blob = await response.blob();
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result as string);
+      reader.onerror = () => resolve(null);
+      reader.readAsDataURL(blob);
+    });
+  } catch {
+    return null;
+  }
+}
+
+export default function Reports() {
+  const { data: registrations, isLoading: isLoadingRegistrations } = useRegistrations();
+  const { data: pastas, isLoading: isLoadingPastas } = usePastas();
+  const { data: qrus } = useQRUs();
+  const { getAllowedPastas } = useAuth();
+
+  const allowedPastas = useMemo(() => {
+    if (!pastas) return [];
+    return getAllowedPastas(pastas).filter(p => p.ativo);
+  }, [pastas, getAllowedPastas]);
+
+  const [mode, setMode] = useState<ReportMode>('passaportes');
+  const [selectedPasta, setSelectedPasta] = useState<string>('');
+  const [selectedQRU, setSelectedQRU] = useState<string>('');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [passportSearch, setPassportSearch] = useState('');
+  const [selectedPassports, setSelectedPassports] = useState<Set<string>>(new Set());
+  const [isGenerating, setIsGenerating] = useState(false);
+
+  // Todos os passaportes únicos agrupados (para modo passaportes)
+  const allGroupedPassports = useMemo(() => {
+    if (!registrations) return [];
+
+    const allowedPastaNames = allowedPastas.map(p => p.nome.toLowerCase());
+    const grouped = new Map<string, GroupedPassport>();
+
+    registrations.forEach((reg) => {
+      const regPasta = (reg.pasta || '').toString().trim().toLowerCase();
+      if (!allowedPastaNames.includes(regPasta)) return;
+
+      const existing = grouped.get(reg.passaporte);
+      const regDate = new Date(reg.data_cadastro || reg.data).getTime();
+
+      if (!existing) {
+        grouped.set(reg.passaporte, {
+          passaporte: reg.passaporte,
+          nome: reg.nome,
+          latestPhoto: reg.imagem_url || '',
+          totalRegistros: 1,
+          pastas: [reg.pasta],
+          qrus: [reg.qru],
+        });
+      } else {
+        existing.totalRegistros++;
+        if (!existing.pastas.includes(reg.pasta)) existing.pastas.push(reg.pasta);
+        if (!existing.qrus.includes(reg.qru)) existing.qrus.push(reg.qru);
+
+        const existingDate = new Date(existing.latestPhoto ? regDate : 0);
+        if (reg.imagem_url && regDate > existingDate.getTime()) {
+          existing.latestPhoto = reg.imagem_url;
+        }
+        // Atualizar nome com o mais recente
+        const currentLatest = registrations
+          .filter(r => r.passaporte === reg.passaporte)
+          .sort((a, b) => new Date(b.data_cadastro || b.data).getTime() - new Date(a.data_cadastro || a.data).getTime())[0];
+        if (currentLatest) existing.nome = currentLatest.nome;
+      }
+    });
+
+    return Array.from(grouped.values()).sort((a, b) => a.nome.localeCompare(b.nome));
+  }, [registrations, allowedPastas]);
+
+  // Passaportes filtrados pela busca
+  const filteredPassports = useMemo(() => {
+    if (!passportSearch.trim()) return allGroupedPassports;
+    const search = passportSearch.toLowerCase();
+    return allGroupedPassports.filter(
+      p => p.nome.toLowerCase().includes(search) || p.passaporte.toLowerCase().includes(search)
+    );
+  }, [allGroupedPassports, passportSearch]);
+
+  // Registros filtrados para o relatório
+  const reportRecords = useMemo(() => {
+    if (!registrations) return [];
+
+    const allowedPastaNames = allowedPastas.map(p => p.nome.toLowerCase());
+
+    return registrations.filter((reg) => {
+      const regPasta = (reg.pasta || '').toString().trim().toLowerCase();
+      if (!allowedPastaNames.includes(regPasta)) return false;
+
+      // Filtro de período
+      const regDateStr = (reg.data || '').toString().substring(0, 10);
+      if (dateFrom && regDateStr < dateFrom) return false;
+      if (dateTo && regDateStr > dateTo) return false;
+
+      // Filtro por modo
+      if (mode === 'passaportes') {
+        return selectedPassports.has(reg.passaporte);
+      } else if (mode === 'pasta') {
+        return selectedPasta && regPasta === selectedPasta.toLowerCase();
+      } else if (mode === 'qru') {
+        const regQRU = (reg.qru || '').toString().trim().toLowerCase();
+        return selectedQRU && regQRU === selectedQRU.toLowerCase();
+      }
+      return false;
+    });
+  }, [registrations, allowedPastas, mode, selectedPassports, selectedPasta, selectedQRU, dateFrom, dateTo]);
+
+  // Agrupar registros do relatório por passaporte (para exibição e PDF)
+  const reportGrouped = useMemo(() => {
+    const grouped = new Map<string, { passaporte: string; nome: string; photo: string; photoDate: number }>();
+
+    reportRecords.forEach((reg) => {
+      const existing = grouped.get(reg.passaporte);
+      const regDate = new Date(reg.data_cadastro || reg.data).getTime();
+
+      if (!existing) {
+        grouped.set(reg.passaporte, {
+          passaporte: reg.passaporte,
+          nome: reg.nome,
+          photo: reg.imagem_url || '',
+          photoDate: reg.imagem_url ? regDate : 0,
+        });
+      } else {
+        // Atualizar foto se mais recente
+        if (reg.imagem_url && regDate > existing.photoDate) {
+          existing.photo = reg.imagem_url;
+          existing.photoDate = regDate;
+        }
+        // Atualizar nome se mais recente
+        if (regDate > existing.photoDate || !existing.photo) {
+          existing.nome = reg.nome;
+        }
+      }
+    });
+
+    return Array.from(grouped.values()).sort((a, b) => a.nome.localeCompare(b.nome));
+  }, [reportRecords]);
+
+  const togglePassport = (passaporte: string) => {
+    setSelectedPassports(prev => {
+      const next = new Set(prev);
+      if (next.has(passaporte)) {
+        next.delete(passaporte);
+      } else {
+        next.add(passaporte);
+      }
+      return next;
+    });
+  };
+
+  const selectAllFiltered = () => {
+    setSelectedPassports(prev => {
+      const next = new Set(prev);
+      filteredPassports.forEach(p => next.add(p.passaporte));
+      return next;
+    });
+  };
+
+  const clearSelectedPassports = () => {
+    setSelectedPassports(new Set());
+  };
+
+  const getReportTitle = () => {
+    if (mode === 'passaportes') return `${reportGrouped.length} passaporte(s) selecionado(s)`;
+    if (mode === 'pasta') return `Pasta: ${selectedPasta}`;
+    if (mode === 'qru') return `QRU: ${selectedQRU}`;
+    return '';
+  };
+
+  const getReportPeriod = () => {
+    if (dateFrom && dateTo) return `Período: ${new Date(dateFrom + 'T12:00:00').toLocaleDateString('pt-BR')} a ${new Date(dateTo + 'T12:00:00').toLocaleDateString('pt-BR')}`;
+    if (dateFrom) return `A partir de: ${new Date(dateFrom + 'T12:00:00').toLocaleDateString('pt-BR')}`;
+    if (dateTo) return `Até: ${new Date(dateTo + 'T12:00:00').toLocaleDateString('pt-BR')}`;
+    return 'Todo o período';
+  };
+
+  const canGenerate = reportGrouped.length > 0;
+
+  const generatePDF = async () => {
+    if (!canGenerate) return;
+    setIsGenerating(true);
+
+    try {
+      const pdf = new jsPDF('portrait', 'mm', 'a4');
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const margin = 15;
+      const contentWidth = pageWidth - margin * 2;
+
+      // Header
+      pdf.setFillColor(15, 23, 42);
+      pdf.rect(0, 0, pageWidth, 35, 'F');
+
+      pdf.setTextColor(0, 255, 135);
+      pdf.setFontSize(18);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('RELATÓRIO GRI', pageWidth / 2, 15, { align: 'center' });
+
+      pdf.setTextColor(200, 200, 200);
+      pdf.setFontSize(10);
+      pdf.setFont('helvetica', 'normal');
+      pdf.text(getReportTitle(), pageWidth / 2, 23, { align: 'center' });
+      pdf.text(getReportPeriod(), pageWidth / 2, 29, { align: 'center' });
+
+      // Data de geração
+      pdf.setFontSize(7);
+      pdf.setTextColor(150, 150, 150);
+      pdf.text(`Gerado em: ${new Date().toLocaleString('pt-BR')}`, pageWidth - margin, 33, { align: 'right' });
+
+      let yPos = 45;
+
+      // Table header
+      const drawTableHeader = () => {
+        pdf.setFillColor(30, 41, 59);
+        pdf.rect(margin, yPos, contentWidth, 10, 'F');
+        pdf.setTextColor(200, 200, 200);
+        pdf.setFontSize(9);
+        pdf.setFont('helvetica', 'bold');
+        pdf.text('Foto', margin + 15, yPos + 7, { align: 'center' });
+        pdf.text('Nome', margin + 40, yPos + 7);
+        pdf.text('Passaporte', pageWidth - margin - 30, yPos + 7);
+        yPos += 12;
+      };
+
+      drawTableHeader();
+
+      // Carregar fotos em paralelo
+      const photoPromises = reportGrouped.map(async (person) => {
+        if (person.photo) {
+          return await imageUrlToBase64(person.photo);
+        }
+        return null;
+      });
+      const photos = await Promise.all(photoPromises);
+
+      // Renderizar cada pessoa
+      for (let i = 0; i < reportGrouped.length; i++) {
+        const person = reportGrouped[i];
+        const photo = photos[i];
+        const rowHeight = 25;
+
+        // Verificar se precisa nova página
+        if (yPos + rowHeight > pageHeight - 20) {
+          // Footer
+          pdf.setFontSize(7);
+          pdf.setTextColor(150, 150, 150);
+          pdf.text(
+            `Página ${pdf.getNumberOfPages()}`,
+            pageWidth / 2,
+            pageHeight - 8,
+            { align: 'center' }
+          );
+
+          pdf.addPage();
+          yPos = 15;
+          drawTableHeader();
+        }
+
+        // Linha alternada
+        if (i % 2 === 0) {
+          pdf.setFillColor(15, 23, 42);
+          pdf.rect(margin, yPos, contentWidth, rowHeight, 'F');
+        }
+
+        // Foto
+        if (photo) {
+          try {
+            pdf.addImage(photo, 'JPEG', margin + 5, yPos + 2, 20, 20);
+          } catch {
+            // Se falhar, desenhar placeholder
+            pdf.setFillColor(50, 50, 70);
+            pdf.roundedRect(margin + 5, yPos + 2, 20, 20, 2, 2, 'F');
+            pdf.setTextColor(100, 100, 120);
+            pdf.setFontSize(7);
+            pdf.text('Sem foto', margin + 15, yPos + 13, { align: 'center' });
+          }
+        } else {
+          pdf.setFillColor(50, 50, 70);
+          pdf.roundedRect(margin + 5, yPos + 2, 20, 20, 2, 2, 'F');
+          pdf.setTextColor(100, 100, 120);
+          pdf.setFontSize(7);
+          pdf.text('Sem foto', margin + 15, yPos + 13, { align: 'center' });
+        }
+
+        // Nome
+        pdf.setTextColor(255, 255, 255);
+        pdf.setFontSize(11);
+        pdf.setFont('helvetica', 'bold');
+        const nomeText = person.nome.length > 35 ? person.nome.substring(0, 35) + '...' : person.nome;
+        pdf.text(nomeText, margin + 40, yPos + 14);
+
+        // Passaporte
+        pdf.setTextColor(0, 255, 135);
+        pdf.setFontSize(10);
+        pdf.setFont('helvetica', 'normal');
+        pdf.text(person.passaporte, pageWidth - margin - 5, yPos + 14, { align: 'right' });
+
+        yPos += rowHeight + 2;
+      }
+
+      // Footer última página
+      pdf.setFontSize(7);
+      pdf.setTextColor(150, 150, 150);
+      pdf.text(
+        `Página ${pdf.getNumberOfPages()} | Total: ${reportGrouped.length} pessoa(s)`,
+        pageWidth / 2,
+        pageHeight - 8,
+        { align: 'center' }
+      );
+
+      // Salvar
+      const dateStr = new Date().toISOString().substring(0, 10);
+      pdf.save(`relatorio-gri-${dateStr}.pdf`);
+    } catch (error) {
+      console.error('Erro ao gerar PDF:', error);
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-b from-[#0f172a] to-[#1e293b]">
+      <Header />
+
+      <main className="container mx-auto px-4 py-8">
+        {/* Título */}
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-white mb-2">Relatórios</h1>
+          <p className="text-gray-400">
+            Selecione os filtros e gere um relatório em PDF
+          </p>
+        </div>
+
+        {/* Configuração do Relatório */}
+        <div className="bg-[#1e293b] rounded-lg p-6 mb-6 border border-gray-700">
+          <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+            <FileDown className="h-5 w-5 text-[#00ff87]" />
+            Configuração
+          </h2>
+
+          {/* Modo de seleção */}
+          <div className="mb-6">
+            <label className="text-sm text-gray-400 mb-3 block">Selecionar por</label>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant={mode === 'passaportes' ? 'default' : 'outline'}
+                onClick={() => setMode('passaportes')}
+                className={mode === 'passaportes'
+                  ? 'bg-[#00ff87] text-[#0f172a] hover:bg-[#00ff87]/90'
+                  : 'border-gray-600 text-gray-300 hover:bg-gray-700'
+                }
+              >
+                <CheckSquare className="h-4 w-4 mr-2" />
+                Passaportes
+              </Button>
+              <Button
+                variant={mode === 'pasta' ? 'default' : 'outline'}
+                onClick={() => setMode('pasta')}
+                className={mode === 'pasta'
+                  ? 'bg-[#00ff87] text-[#0f172a] hover:bg-[#00ff87]/90'
+                  : 'border-gray-600 text-gray-300 hover:bg-gray-700'
+                }
+              >
+                <FolderOpen className="h-4 w-4 mr-2" />
+                Pasta
+              </Button>
+              <Button
+                variant={mode === 'qru' ? 'default' : 'outline'}
+                onClick={() => setMode('qru')}
+                className={mode === 'qru'
+                  ? 'bg-[#00ff87] text-[#0f172a] hover:bg-[#00ff87]/90'
+                  : 'border-gray-600 text-gray-300 hover:bg-gray-700'
+                }
+              >
+                <MapPin className="h-4 w-4 mr-2" />
+                QRU
+              </Button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+            {/* Filtro por Pasta */}
+            {mode === 'pasta' && (
+              <div>
+                <label className="text-sm text-gray-400 mb-2 block">Selecionar Pasta</label>
+                <Select
+                  value={selectedPasta}
+                  onValueChange={setSelectedPasta}
+                  disabled={isLoadingPastas}
+                >
+                  <SelectTrigger className="bg-[#0f172a] border-gray-600 text-white">
+                    <SelectValue placeholder="Escolha uma pasta" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-[#1e293b] border-gray-700">
+                    {allowedPastas.map((pasta) => (
+                      <SelectItem key={pasta.id} value={pasta.nome} className="text-white">
+                        {pasta.codigo} - {pasta.nome}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {/* Filtro por QRU */}
+            {mode === 'qru' && (
+              <div>
+                <label className="text-sm text-gray-400 mb-2 block">Selecionar QRU</label>
+                <Select value={selectedQRU} onValueChange={setSelectedQRU}>
+                  <SelectTrigger className="bg-[#0f172a] border-gray-600 text-white">
+                    <SelectValue placeholder="Escolha um QRU" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-[#1e293b] border-gray-700">
+                    {qrus?.filter(q => q.ativo).map((qru) => (
+                      <SelectItem key={qru.id} value={qru.nome} className="text-white">
+                        {qru.codigo} - {qru.nome}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {/* Período */}
+            <div>
+              <label className="text-sm text-gray-400 mb-2 block flex items-center gap-1">
+                <Calendar className="h-3 w-3" />
+                De
+              </label>
+              <Input
+                type="date"
+                value={dateFrom}
+                onChange={(e) => setDateFrom(e.target.value)}
+                className="bg-[#0f172a] border-gray-600 text-white"
+              />
+            </div>
+            <div>
+              <label className="text-sm text-gray-400 mb-2 block flex items-center gap-1">
+                <Calendar className="h-3 w-3" />
+                Até
+              </label>
+              <Input
+                type="date"
+                value={dateTo}
+                onChange={(e) => setDateTo(e.target.value)}
+                className="bg-[#0f172a] border-gray-600 text-white"
+              />
+            </div>
+          </div>
+
+          {/* Seleção de passaportes */}
+          {mode === 'passaportes' && (
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <label className="text-sm text-gray-400">
+                  Selecionar passaportes ({selectedPassports.size} selecionado{selectedPassports.size !== 1 ? 's' : ''})
+                </label>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={selectAllFiltered}
+                    className="border-gray-600 text-gray-300 hover:bg-gray-700 text-xs"
+                  >
+                    Selecionar todos
+                  </Button>
+                  {selectedPassports.size > 0 && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={clearSelectedPassports}
+                      className="border-gray-600 text-gray-300 hover:bg-gray-700 text-xs"
+                    >
+                      <X className="h-3 w-3 mr-1" />
+                      Limpar
+                    </Button>
+                  )}
+                </div>
+              </div>
+
+              {/* Busca de passaportes */}
+              <div className="relative mb-3">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Input
+                  type="text"
+                  placeholder="Buscar por nome ou passaporte..."
+                  value={passportSearch}
+                  onChange={(e) => setPassportSearch(e.target.value)}
+                  className="bg-[#0f172a] border-gray-600 text-white pl-10"
+                />
+              </div>
+
+              {/* Lista de passaportes */}
+              <div className="max-h-64 overflow-y-auto bg-[#0f172a] rounded-lg border border-gray-700">
+                {isLoadingRegistrations ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="h-6 w-6 animate-spin text-[#00ff87]" />
+                  </div>
+                ) : filteredPassports.length === 0 ? (
+                  <p className="text-gray-500 text-sm text-center py-8">Nenhum passaporte encontrado</p>
+                ) : (
+                  filteredPassports.map((person) => (
+                    <label
+                      key={person.passaporte}
+                      className="flex items-center gap-3 px-4 py-3 hover:bg-[#1e293b] cursor-pointer border-b border-gray-800 last:border-b-0"
+                    >
+                      <Checkbox
+                        checked={selectedPassports.has(person.passaporte)}
+                        onCheckedChange={() => togglePassport(person.passaporte)}
+                      />
+                      <div className="w-8 h-8 rounded-full bg-[#1e293b] flex items-center justify-center overflow-hidden flex-shrink-0">
+                        {person.latestPhoto ? (
+                          <img src={person.latestPhoto} alt="" className="w-full h-full object-cover" />
+                        ) : (
+                          <User className="h-4 w-4 text-gray-600" />
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-white text-sm font-medium truncate">{person.nome}</p>
+                        <p className="text-gray-500 text-xs font-mono">{person.passaporte}</p>
+                      </div>
+                      <span className="text-xs text-gray-500">{person.totalRegistros} reg.</span>
+                    </label>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Preview e Gerar PDF */}
+        {reportGrouped.length > 0 && (
+          <div className="bg-[#1e293b] rounded-lg border border-gray-700 overflow-hidden mb-6">
+            <div className="p-4 border-b border-gray-700 flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-semibold text-white">
+                  Preview do Relatório
+                </h2>
+                <p className="text-sm text-gray-400">
+                  {reportGrouped.length} pessoa(s) | {getReportPeriod()}
+                </p>
+              </div>
+              <Button
+                onClick={generatePDF}
+                disabled={isGenerating}
+                className="bg-[#00ff87] text-[#0f172a] hover:bg-[#00ff87]/90 font-semibold"
+              >
+                {isGenerating ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Gerando PDF...
+                  </>
+                ) : (
+                  <>
+                    <FileDown className="h-4 w-4 mr-2" />
+                    Gerar PDF
+                  </>
+                )}
+              </Button>
+            </div>
+
+            <Table>
+              <TableHeader>
+                <TableRow className="border-gray-700 hover:bg-[#0f172a]">
+                  <TableHead className="w-16 text-gray-400">Foto</TableHead>
+                  <TableHead className="text-gray-400">Nome</TableHead>
+                  <TableHead className="text-gray-400">Passaporte</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {reportGrouped.map((person) => (
+                  <TableRow key={person.passaporte} className="border-gray-700 hover:bg-[#0f172a]">
+                    <TableCell>
+                      <div className="w-10 h-10 rounded-full bg-[#0f172a] flex items-center justify-center overflow-hidden">
+                        {person.photo ? (
+                          <img src={person.photo} alt={person.nome} className="w-full h-full object-cover" />
+                        ) : (
+                          <User className="h-5 w-5 text-gray-600" />
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-white font-medium">{person.nome}</TableCell>
+                    <TableCell>
+                      <span className="font-mono text-gray-300 flex items-center gap-2">
+                        <FileText className="h-3 w-3 text-[#00ff87]" />
+                        {person.passaporte}
+                      </span>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+
+        {/* Mensagem quando não há resultados */}
+        {!isLoadingRegistrations && reportGrouped.length === 0 && (
+          <div className="text-center py-12">
+            <FileDown className="h-16 w-16 text-gray-600 mx-auto mb-4" />
+            <p className="text-gray-400 text-lg mb-2">
+              {mode === 'passaportes' && selectedPassports.size === 0
+                ? 'Selecione os passaportes para o relatório'
+                : mode === 'pasta' && !selectedPasta
+                ? 'Selecione uma pasta para o relatório'
+                : mode === 'qru' && !selectedQRU
+                ? 'Selecione um QRU para o relatório'
+                : 'Nenhum registro encontrado com os filtros aplicados'
+              }
+            </p>
+          </div>
+        )}
+      </main>
+    </div>
+  );
+}

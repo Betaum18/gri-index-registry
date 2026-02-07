@@ -96,7 +96,7 @@ export default function Reports() {
     if (!registrations) return [];
 
     const allowedPastaNames = allowedPastas.map(p => p.nome.toLowerCase());
-    const grouped = new Map<string, GroupedPassport>();
+    const grouped = new Map<string, GroupedPassport & { _latestDate: number; _latestPhotoDate: number }>();
 
     registrations.forEach((reg) => {
       const regPasta = (reg.pasta || '').toString().trim().toLowerCase();
@@ -113,21 +113,24 @@ export default function Reports() {
           totalRegistros: 1,
           pastas: [reg.pasta],
           qrus: [reg.qru],
+          _latestDate: regDate,
+          _latestPhotoDate: reg.imagem_url ? regDate : 0,
         });
       } else {
         existing.totalRegistros++;
         if (!existing.pastas.includes(reg.pasta)) existing.pastas.push(reg.pasta);
         if (!existing.qrus.includes(reg.qru)) existing.qrus.push(reg.qru);
 
-        const existingDate = new Date(existing.latestPhoto ? regDate : 0);
-        if (reg.imagem_url && regDate > existingDate.getTime()) {
+        // Atualizar foto se mais recente
+        if (reg.imagem_url && regDate > existing._latestPhotoDate) {
           existing.latestPhoto = reg.imagem_url;
+          existing._latestPhotoDate = regDate;
         }
-        // Atualizar nome com o mais recente
-        const currentLatest = registrations
-          .filter(r => r.passaporte === reg.passaporte)
-          .sort((a, b) => new Date(b.data_cadastro || b.data).getTime() - new Date(a.data_cadastro || a.data).getTime())[0];
-        if (currentLatest) existing.nome = currentLatest.nome;
+        // Atualizar nome se mais recente
+        if (regDate > existing._latestDate) {
+          existing.nome = reg.nome;
+          existing._latestDate = regDate;
+        }
       }
     });
 

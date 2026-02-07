@@ -40,17 +40,26 @@ import {
   X,
 } from 'lucide-react';
 import jsPDF from 'jspdf';
-import type { Registration } from '@/services/types';
+import { toast } from 'sonner';
 
 type ReportMode = 'passaportes' | 'pasta' | 'qru';
+
+/** Helper para converter qualquer valor para string segura */
+const str = (val: unknown): string => (val ?? '').toString().trim();
 
 interface GroupedPassport {
   passaporte: string;
   nome: string;
   latestPhoto: string;
   totalRegistros: number;
-  pastas: string[];
-  qrus: string[];
+  latestDate: number;
+  latestPhotoDate: number;
+}
+
+interface ReportPerson {
+  passaporte: string;
+  nome: string;
+  photo: string;
 }
 
 /**
@@ -58,7 +67,11 @@ interface GroupedPassport {
  */
 async function imageUrlToBase64(url: string): Promise<string | null> {
   try {
-    const response = await fetch(url);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
+    const response = await fetch(url, { signal: controller.signal });
+    clearTimeout(timeout);
+    if (!response.ok) return null;
     const blob = await response.blob();
     return new Promise((resolve) => {
       const reader = new FileReader();
@@ -96,40 +109,35 @@ export default function Reports() {
     if (!registrations) return [];
 
     const allowedPastaNames = allowedPastas.map(p => p.nome.toLowerCase());
-    const grouped = new Map<string, GroupedPassport & { _latestDate: number; _latestPhotoDate: number }>();
+    const grouped = new Map<string, GroupedPassport>();
 
     registrations.forEach((reg) => {
-      const regPasta = (reg.pasta || '').toString().trim().toLowerCase();
+      const regPasta = str(reg.pasta).toLowerCase();
       if (!allowedPastaNames.includes(regPasta)) return;
 
-      const existing = grouped.get(reg.passaporte);
-      const regDate = new Date(reg.data_cadastro || reg.data).getTime();
+      const passaporte = str(reg.passaporte);
+      const nome = str(reg.nome);
+      const regDate = new Date(reg.data_cadastro || reg.data).getTime() || 0;
+      const existing = grouped.get(passaporte);
 
       if (!existing) {
-        grouped.set(reg.passaporte, {
-          passaporte: reg.passaporte,
-          nome: reg.nome,
-          latestPhoto: reg.imagem_url || '',
+        grouped.set(passaporte, {
+          passaporte,
+          nome,
+          latestPhoto: str(reg.imagem_url),
           totalRegistros: 1,
-          pastas: [reg.pasta],
-          qrus: [reg.qru],
-          _latestDate: regDate,
-          _latestPhotoDate: reg.imagem_url ? regDate : 0,
+          latestDate: regDate,
+          latestPhotoDate: reg.imagem_url ? regDate : 0,
         });
       } else {
         existing.totalRegistros++;
-        if (!existing.pastas.includes(reg.pasta)) existing.pastas.push(reg.pasta);
-        if (!existing.qrus.includes(reg.qru)) existing.qrus.push(reg.qru);
-
-        // Atualizar foto se mais recente
-        if (reg.imagem_url && regDate > existing._latestPhotoDate) {
-          existing.latestPhoto = reg.imagem_url;
-          existing._latestPhotoDate = regDate;
+        if (reg.imagem_url && regDate > existing.latestPhotoDate) {
+          existing.latestPhoto = str(reg.imagem_url);
+          existing.latestPhotoDate = regDate;
         }
-        // Atualizar nome se mais recente
-        if (regDate > existing._latestDate) {
-          existing.nome = reg.nome;
-          existing._latestDate = regDate;
+        if (regDate > existing.latestDate) {
+          existing.nome = nome;
+          existing.latestDate = regDate;
         }
       }
     });
@@ -147,63 +155,63 @@ export default function Reports() {
   }, [allGroupedPassports, passportSearch]);
 
   // Registros filtrados para o relatório
-  const reportRecords = useMemo(() => {
+  const reportGrouped = useMemo((): ReportPerson[] => {
     if (!registrations) return [];
 
     const allowedPastaNames = allowedPastas.map(p => p.nome.toLowerCase());
+    const grouped = new Map<string, ReportPerson & { _photoDate: number; _nameDate: number }>();
 
-    return registrations.filter((reg) => {
-      const regPasta = (reg.pasta || '').toString().trim().toLowerCase();
-      if (!allowedPastaNames.includes(regPasta)) return false;
+    registrations.forEach((reg) => {
+      const regPasta = str(reg.pasta).toLowerCase();
+      if (!allowedPastaNames.includes(regPasta)) return;
 
       // Filtro de período
-      const regDateStr = (reg.data || '').toString().substring(0, 10);
-      if (dateFrom && regDateStr < dateFrom) return false;
-      if (dateTo && regDateStr > dateTo) return false;
+      const regDateStr = str(reg.data).substring(0, 10);
+      if (dateFrom && regDateStr < dateFrom) return;
+      if (dateTo && regDateStr > dateTo) return;
 
       // Filtro por modo
+      const passaporte = str(reg.passaporte);
+      let matches = false;
+
       if (mode === 'passaportes') {
-        return selectedPassports.has(reg.passaporte);
+        matches = selectedPassports.has(passaporte);
       } else if (mode === 'pasta') {
-        return selectedPasta && regPasta === selectedPasta.toLowerCase();
+        matches = !!selectedPasta && regPasta === selectedPasta.toLowerCase();
       } else if (mode === 'qru') {
-        const regQRU = (reg.qru || '').toString().trim().toLowerCase();
-        return selectedQRU && regQRU === selectedQRU.toLowerCase();
+        const regQRU = str(reg.qru).toLowerCase();
+        matches = !!selectedQRU && regQRU === selectedQRU.toLowerCase();
       }
-      return false;
-    });
-  }, [registrations, allowedPastas, mode, selectedPassports, selectedPasta, selectedQRU, dateFrom, dateTo]);
 
-  // Agrupar registros do relatório por passaporte (para exibição e PDF)
-  const reportGrouped = useMemo(() => {
-    const grouped = new Map<string, { passaporte: string; nome: string; photo: string; photoDate: number }>();
+      if (!matches) return;
 
-    reportRecords.forEach((reg) => {
-      const existing = grouped.get(reg.passaporte);
-      const regDate = new Date(reg.data_cadastro || reg.data).getTime();
+      const regDate = new Date(reg.data_cadastro || reg.data).getTime() || 0;
+      const existing = grouped.get(passaporte);
 
       if (!existing) {
-        grouped.set(reg.passaporte, {
-          passaporte: reg.passaporte,
-          nome: reg.nome,
-          photo: reg.imagem_url || '',
-          photoDate: reg.imagem_url ? regDate : 0,
+        grouped.set(passaporte, {
+          passaporte,
+          nome: str(reg.nome),
+          photo: str(reg.imagem_url),
+          _photoDate: reg.imagem_url ? regDate : 0,
+          _nameDate: regDate,
         });
       } else {
-        // Atualizar foto se mais recente
-        if (reg.imagem_url && regDate > existing.photoDate) {
-          existing.photo = reg.imagem_url;
-          existing.photoDate = regDate;
+        if (reg.imagem_url && regDate > existing._photoDate) {
+          existing.photo = str(reg.imagem_url);
+          existing._photoDate = regDate;
         }
-        // Atualizar nome se mais recente
-        if (regDate > existing.photoDate || !existing.photo) {
-          existing.nome = reg.nome;
+        if (regDate > existing._nameDate) {
+          existing.nome = str(reg.nome);
+          existing._nameDate = regDate;
         }
       }
     });
 
-    return Array.from(grouped.values()).sort((a, b) => a.nome.localeCompare(b.nome));
-  }, [reportRecords]);
+    return Array.from(grouped.values())
+      .map(({ passaporte, nome, photo }) => ({ passaporte, nome, photo }))
+      .sort((a, b) => a.nome.localeCompare(b.nome));
+  }, [registrations, allowedPastas, mode, selectedPassports, selectedPasta, selectedQRU, dateFrom, dateTo]);
 
   const togglePassport = (passaporte: string) => {
     setSelectedPassports(prev => {
@@ -243,10 +251,8 @@ export default function Reports() {
     return 'Todo o período';
   };
 
-  const canGenerate = reportGrouped.length > 0;
-
   const generatePDF = async () => {
-    if (!canGenerate) return;
+    if (reportGrouped.length === 0) return;
     setIsGenerating(true);
 
     try {
@@ -271,14 +277,12 @@ export default function Reports() {
       pdf.text(getReportTitle(), pageWidth / 2, 23, { align: 'center' });
       pdf.text(getReportPeriod(), pageWidth / 2, 29, { align: 'center' });
 
-      // Data de geração
       pdf.setFontSize(7);
       pdf.setTextColor(150, 150, 150);
       pdf.text(`Gerado em: ${new Date().toLocaleString('pt-BR')}`, pageWidth - margin, 33, { align: 'right' });
 
       let yPos = 45;
 
-      // Table header
       const drawTableHeader = () => {
         pdf.setFillColor(30, 41, 59);
         pdf.rect(margin, yPos, contentWidth, 10, 'F');
@@ -293,14 +297,17 @@ export default function Reports() {
 
       drawTableHeader();
 
-      // Carregar fotos em paralelo
-      const photoPromises = reportGrouped.map(async (person) => {
-        if (person.photo) {
-          return await imageUrlToBase64(person.photo);
-        }
-        return null;
-      });
-      const photos = await Promise.all(photoPromises);
+      // Carregar fotos em paralelo com timeout
+      const photos: (string | null)[] = [];
+      const photoUrls = reportGrouped.map(p => p.photo);
+      const batchSize = 5;
+      for (let i = 0; i < photoUrls.length; i += batchSize) {
+        const batch = photoUrls.slice(i, i + batchSize).map(url =>
+          url ? imageUrlToBase64(url) : Promise.resolve(null)
+        );
+        const results = await Promise.all(batch);
+        photos.push(...results);
+      }
 
       // Renderizar cada pessoa
       for (let i = 0; i < reportGrouped.length; i++) {
@@ -308,42 +315,31 @@ export default function Reports() {
         const photo = photos[i];
         const rowHeight = 25;
 
-        // Verificar se precisa nova página
         if (yPos + rowHeight > pageHeight - 20) {
-          // Footer
           pdf.setFontSize(7);
           pdf.setTextColor(150, 150, 150);
-          pdf.text(
-            `Página ${pdf.getNumberOfPages()}`,
-            pageWidth / 2,
-            pageHeight - 8,
-            { align: 'center' }
-          );
-
+          pdf.text(`Página ${pdf.getNumberOfPages()}`, pageWidth / 2, pageHeight - 8, { align: 'center' });
           pdf.addPage();
           yPos = 15;
           drawTableHeader();
         }
 
-        // Linha alternada
         if (i % 2 === 0) {
           pdf.setFillColor(15, 23, 42);
           pdf.rect(margin, yPos, contentWidth, rowHeight, 'F');
         }
 
         // Foto
+        let photoDrawn = false;
         if (photo) {
           try {
             pdf.addImage(photo, 'JPEG', margin + 5, yPos + 2, 20, 20);
+            photoDrawn = true;
           } catch {
-            // Se falhar, desenhar placeholder
-            pdf.setFillColor(50, 50, 70);
-            pdf.roundedRect(margin + 5, yPos + 2, 20, 20, 2, 2, 'F');
-            pdf.setTextColor(100, 100, 120);
-            pdf.setFontSize(7);
-            pdf.text('Sem foto', margin + 15, yPos + 13, { align: 'center' });
+            // Falha ao adicionar imagem
           }
-        } else {
+        }
+        if (!photoDrawn) {
           pdf.setFillColor(50, 50, 70);
           pdf.roundedRect(margin + 5, yPos + 2, 20, 20, 2, 2, 'F');
           pdf.setTextColor(100, 100, 120);
@@ -362,7 +358,7 @@ export default function Reports() {
         pdf.setTextColor(0, 255, 135);
         pdf.setFontSize(10);
         pdf.setFont('helvetica', 'normal');
-        pdf.text(person.passaporte, pageWidth - margin - 5, yPos + 14, { align: 'right' });
+        pdf.text(String(person.passaporte), pageWidth - margin - 5, yPos + 14, { align: 'right' });
 
         yPos += rowHeight + 2;
       }
@@ -377,11 +373,12 @@ export default function Reports() {
         { align: 'center' }
       );
 
-      // Salvar
       const dateStr = new Date().toISOString().substring(0, 10);
       pdf.save(`relatorio-gri-${dateStr}.pdf`);
+      toast.success('PDF gerado com sucesso!');
     } catch (error) {
       console.error('Erro ao gerar PDF:', error);
+      toast.error('Erro ao gerar o PDF. Tente novamente.');
     } finally {
       setIsGenerating(false);
     }

@@ -1,6 +1,6 @@
 /**
  * Página de Relatórios - Gera PDF com registros filtrados
- * Permite selecionar por passaportes múltiplos, pasta ou QRU com filtro de período
+ * Filtros combinados: período + pasta + QRU + seleção de passaportes
  */
 
 import { useState, useMemo } from 'react';
@@ -36,13 +36,10 @@ import {
   Calendar,
   MapPin,
   FolderOpen,
-  CheckSquare,
   X,
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import { toast } from 'sonner';
-
-type ReportMode = 'passaportes' | 'pasta' | 'qru';
 
 /** Helper para converter qualquer valor para string segura */
 const str = (val: unknown): string => (val ?? '').toString().trim();
@@ -62,9 +59,6 @@ interface ReportPerson {
   photo: string;
 }
 
-/**
- * Converte URL de imagem para base64 data URL
- */
 async function imageUrlToBase64(url: string): Promise<string | null> {
   try {
     const controller = new AbortController();
@@ -95,7 +89,7 @@ export default function Reports() {
     return getAllowedPastas(pastas).filter(p => p.ativo);
   }, [pastas, getAllowedPastas]);
 
-  const [mode, setMode] = useState<ReportMode>('passaportes');
+  // Filtros combinados
   const [selectedPasta, setSelectedPasta] = useState<string>('');
   const [selectedQRU, setSelectedQRU] = useState<string>('');
   const [dateFrom, setDateFrom] = useState('');
@@ -104,7 +98,7 @@ export default function Reports() {
   const [selectedPassports, setSelectedPassports] = useState<Set<string>>(new Set());
   const [isGenerating, setIsGenerating] = useState(false);
 
-  // Todos os passaportes únicos agrupados (para modo passaportes)
+  // Passaportes agrupados com todos os filtros ativos (pasta, QRU, período)
   const allGroupedPassports = useMemo(() => {
     if (!registrations) return [];
 
@@ -114,6 +108,17 @@ export default function Reports() {
     registrations.forEach((reg) => {
       const regPasta = str(reg.pasta).toLowerCase();
       if (!allowedPastaNames.includes(regPasta)) return;
+
+      // Filtro por pasta
+      if (selectedPasta && regPasta !== selectedPasta.toLowerCase()) return;
+
+      // Filtro por QRU
+      if (selectedQRU && str(reg.qru).toLowerCase() !== selectedQRU.toLowerCase()) return;
+
+      // Filtro por período
+      const regDateStr = str(reg.data).substring(0, 10);
+      if (dateFrom && regDateStr < dateFrom) return;
+      if (dateTo && regDateStr > dateTo) return;
 
       const passaporte = str(reg.passaporte);
       const nome = str(reg.nome);
@@ -143,9 +148,9 @@ export default function Reports() {
     });
 
     return Array.from(grouped.values()).sort((a, b) => a.nome.localeCompare(b.nome));
-  }, [registrations, allowedPastas]);
+  }, [registrations, allowedPastas, selectedPasta, selectedQRU, dateFrom, dateTo]);
 
-  // Passaportes filtrados pela busca
+  // Passaportes filtrados pela busca de texto
   const filteredPassports = useMemo(() => {
     if (!passportSearch.trim()) return allGroupedPassports;
     const search = passportSearch.toLowerCase();
@@ -154,73 +159,18 @@ export default function Reports() {
     );
   }, [allGroupedPassports, passportSearch]);
 
-  // Registros filtrados para o relatório
+  // Registros do relatório: passaportes selecionados dentro dos filtros ativos
   const reportGrouped = useMemo((): ReportPerson[] => {
-    if (!registrations) return [];
-
-    const allowedPastaNames = allowedPastas.map(p => p.nome.toLowerCase());
-    const grouped = new Map<string, ReportPerson & { _photoDate: number; _nameDate: number }>();
-
-    registrations.forEach((reg) => {
-      const regPasta = str(reg.pasta).toLowerCase();
-      if (!allowedPastaNames.includes(regPasta)) return;
-
-      // Filtro de período
-      const regDateStr = str(reg.data).substring(0, 10);
-      if (dateFrom && regDateStr < dateFrom) return;
-      if (dateTo && regDateStr > dateTo) return;
-
-      // Filtro por modo
-      const passaporte = str(reg.passaporte);
-      let matches = false;
-
-      if (mode === 'passaportes') {
-        matches = selectedPassports.has(passaporte);
-      } else if (mode === 'pasta') {
-        matches = !!selectedPasta && regPasta === selectedPasta.toLowerCase();
-      } else if (mode === 'qru') {
-        const regQRU = str(reg.qru).toLowerCase();
-        matches = !!selectedQRU && regQRU === selectedQRU.toLowerCase();
-      }
-
-      if (!matches) return;
-
-      const regDate = new Date(reg.data_cadastro || reg.data).getTime() || 0;
-      const existing = grouped.get(passaporte);
-
-      if (!existing) {
-        grouped.set(passaporte, {
-          passaporte,
-          nome: str(reg.nome),
-          photo: str(reg.imagem_url),
-          _photoDate: reg.imagem_url ? regDate : 0,
-          _nameDate: regDate,
-        });
-      } else {
-        if (reg.imagem_url && regDate > existing._photoDate) {
-          existing.photo = str(reg.imagem_url);
-          existing._photoDate = regDate;
-        }
-        if (regDate > existing._nameDate) {
-          existing.nome = str(reg.nome);
-          existing._nameDate = regDate;
-        }
-      }
-    });
-
-    return Array.from(grouped.values())
-      .map(({ passaporte, nome, photo }) => ({ passaporte, nome, photo }))
-      .sort((a, b) => a.nome.localeCompare(b.nome));
-  }, [registrations, allowedPastas, mode, selectedPassports, selectedPasta, selectedQRU, dateFrom, dateTo]);
+    return allGroupedPassports
+      .filter(p => selectedPassports.has(p.passaporte))
+      .map(p => ({ passaporte: p.passaporte, nome: p.nome, photo: p.latestPhoto }));
+  }, [allGroupedPassports, selectedPassports]);
 
   const togglePassport = (passaporte: string) => {
     setSelectedPassports(prev => {
       const next = new Set(prev);
-      if (next.has(passaporte)) {
-        next.delete(passaporte);
-      } else {
-        next.add(passaporte);
-      }
+      if (next.has(passaporte)) next.delete(passaporte);
+      else next.add(passaporte);
       return next;
     });
   };
@@ -233,15 +183,14 @@ export default function Reports() {
     });
   };
 
-  const clearSelectedPassports = () => {
-    setSelectedPassports(new Set());
-  };
+  const clearSelectedPassports = () => setSelectedPassports(new Set());
 
   const getReportTitle = () => {
-    if (mode === 'passaportes') return `${reportGrouped.length} passaporte(s) selecionado(s)`;
-    if (mode === 'pasta') return `Pasta: ${selectedPasta}`;
-    if (mode === 'qru') return `QRU: ${selectedQRU}`;
-    return '';
+    const parts: string[] = [];
+    if (selectedPasta) parts.push(`Pasta: ${selectedPasta}`);
+    if (selectedQRU) parts.push(`QRU: ${selectedQRU}`);
+    parts.push(`${reportGrouped.length} pessoa(s)`);
+    return parts.join(' | ');
   };
 
   const getReportPeriod = () => {
@@ -407,119 +356,88 @@ export default function Reports() {
             Configuração
           </h2>
 
-          {/* Modo de seleção */}
-          <div className="mb-6">
-            <label className="text-sm text-gray-400 mb-3 block">Selecionar por</label>
-            <div className="flex flex-wrap gap-2">
-              <Button
-                variant={mode === 'passaportes' ? 'default' : 'outline'}
-                onClick={() => setMode('passaportes')}
-                className={mode === 'passaportes'
-                  ? 'bg-[#00ff87] text-[#0f172a] hover:bg-[#00ff87]/90'
-                  : 'border-gray-600 text-gray-300 hover:bg-gray-700'
-                }
-              >
-                <CheckSquare className="h-4 w-4 mr-2" />
-                Passaportes
-              </Button>
-              <Button
-                variant={mode === 'pasta' ? 'default' : 'outline'}
-                onClick={() => setMode('pasta')}
-                className={mode === 'pasta'
-                  ? 'bg-[#00ff87] text-[#0f172a] hover:bg-[#00ff87]/90'
-                  : 'border-gray-600 text-gray-300 hover:bg-gray-700'
-                }
-              >
-                <FolderOpen className="h-4 w-4 mr-2" />
-                Pasta
-              </Button>
-              <Button
-                variant={mode === 'qru' ? 'default' : 'outline'}
-                onClick={() => setMode('qru')}
-                className={mode === 'qru'
-                  ? 'bg-[#00ff87] text-[#0f172a] hover:bg-[#00ff87]/90'
-                  : 'border-gray-600 text-gray-300 hover:bg-gray-700'
-                }
-              >
-                <MapPin className="h-4 w-4 mr-2" />
-                QRU
-              </Button>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-            {/* Filtro por Pasta */}
-            {mode === 'pasta' && (
-              <div>
-                <label className="text-sm text-gray-400 mb-2 block">Selecionar Pasta</label>
-                <Select
-                  value={selectedPasta}
-                  onValueChange={setSelectedPasta}
-                  disabled={isLoadingPastas}
-                >
-                  <SelectTrigger className="bg-[#0f172a] border-gray-600 text-white">
-                    <SelectValue placeholder="Escolha uma pasta" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-[#1e293b] border-gray-700">
-                    {allowedPastas.map((pasta) => (
-                      <SelectItem key={pasta.id} value={pasta.nome} className="text-white">
-                        {pasta.codigo} - {pasta.nome}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-
-            {/* Filtro por QRU */}
-            {mode === 'qru' && (
-              <div>
-                <label className="text-sm text-gray-400 mb-2 block">Selecionar QRU</label>
-                <Select value={selectedQRU} onValueChange={setSelectedQRU}>
-                  <SelectTrigger className="bg-[#0f172a] border-gray-600 text-white">
-                    <SelectValue placeholder="Escolha um QRU" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-[#1e293b] border-gray-700">
-                    {qrus?.filter(q => q.ativo).map((qru) => (
-                      <SelectItem key={qru.id} value={qru.nome} className="text-white">
-                        {qru.codigo} - {qru.nome}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-
-            {/* Período */}
+          {/* Filtros combinados */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+            {/* Pasta */}
             <div>
-              <label className="text-sm text-gray-400 mb-2 block flex items-center gap-1">
+              <label className="text-sm text-gray-400 mb-2 flex items-center gap-1">
+                <FolderOpen className="h-3 w-3" />
+                Pasta
+              </label>
+              <Select
+                value={selectedPasta || '__all__'}
+                onValueChange={(v) => { setSelectedPasta(v === '__all__' ? '' : v); setSelectedPassports(new Set()); }}
+                disabled={isLoadingPastas}
+              >
+                <SelectTrigger className="bg-[#0f172a] border-gray-600 text-white">
+                  <SelectValue placeholder="Todas" />
+                </SelectTrigger>
+                <SelectContent className="bg-[#1e293b] border-gray-700">
+                  <SelectItem value="__all__" className="text-gray-400">Todas</SelectItem>
+                  {allowedPastas.map((pasta) => (
+                    <SelectItem key={pasta.id} value={pasta.nome} className="text-white">
+                      {pasta.codigo} - {pasta.nome}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* QRU */}
+            <div>
+              <label className="text-sm text-gray-400 mb-2 flex items-center gap-1">
+                <MapPin className="h-3 w-3" />
+                QRU
+              </label>
+              <Select
+                value={selectedQRU || '__all__'}
+                onValueChange={(v) => { setSelectedQRU(v === '__all__' ? '' : v); setSelectedPassports(new Set()); }}
+              >
+                <SelectTrigger className="bg-[#0f172a] border-gray-600 text-white">
+                  <SelectValue placeholder="Todos" />
+                </SelectTrigger>
+                <SelectContent className="bg-[#1e293b] border-gray-700">
+                  <SelectItem value="__all__" className="text-gray-400">Todos</SelectItem>
+                  {qrus?.filter(q => q.ativo).map((qru) => (
+                    <SelectItem key={qru.id} value={qru.nome} className="text-white">
+                      {qru.codigo} - {qru.nome}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Período: De */}
+            <div>
+              <label className="text-sm text-gray-400 mb-2 flex items-center gap-1">
                 <Calendar className="h-3 w-3" />
                 De
               </label>
               <Input
                 type="date"
                 value={dateFrom}
-                onChange={(e) => setDateFrom(e.target.value)}
+                onChange={(e) => { setDateFrom(e.target.value); setSelectedPassports(new Set()); }}
                 className="bg-[#0f172a] border-gray-600 text-white"
               />
             </div>
+
+            {/* Período: Até */}
             <div>
-              <label className="text-sm text-gray-400 mb-2 block flex items-center gap-1">
+              <label className="text-sm text-gray-400 mb-2 flex items-center gap-1">
                 <Calendar className="h-3 w-3" />
                 Até
               </label>
               <Input
                 type="date"
                 value={dateTo}
-                onChange={(e) => setDateTo(e.target.value)}
+                onChange={(e) => { setDateTo(e.target.value); setSelectedPassports(new Set()); }}
                 className="bg-[#0f172a] border-gray-600 text-white"
               />
             </div>
           </div>
 
           {/* Seleção de passaportes */}
-          {mode === 'passaportes' && (
-            <div>
+          <div>
               <div className="flex items-center justify-between mb-3">
                 <label className="text-sm text-gray-400">
                   Selecionar passaportes ({selectedPassports.size} selecionado{selectedPassports.size !== 1 ? 's' : ''})
@@ -667,12 +585,8 @@ export default function Reports() {
           <div className="text-center py-12">
             <FileDown className="h-16 w-16 text-gray-600 mx-auto mb-4" />
             <p className="text-gray-400 text-lg mb-2">
-              {mode === 'passaportes' && selectedPassports.size === 0
+              {selectedPassports.size === 0
                 ? 'Selecione os passaportes para o relatório'
-                : mode === 'pasta' && !selectedPasta
-                ? 'Selecione uma pasta para o relatório'
-                : mode === 'qru' && !selectedQRU
-                ? 'Selecione um QRU para o relatório'
                 : 'Nenhum registro encontrado com os filtros aplicados'
               }
             </p>

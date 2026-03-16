@@ -512,7 +512,6 @@ export default function Reports() {
                 )}
               </div>
             </div>
-          )}
         </div>
 
         {/* Preview e Gerar PDF */}

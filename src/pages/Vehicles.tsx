@@ -3,7 +3,7 @@
  * Vincula veículos a passaportes com placa, modelo, cor e foto
  */
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { useVehicles } from '@/hooks/queries/useVehicles';
 import { useCreateVehicle, useDeleteVehicle } from '@/hooks/mutations/useVehicleMutations';
 import { useAuth } from '@/contexts/AuthContext';
@@ -35,7 +35,8 @@ import {
   Trash2,
   Search,
   FileText,
-  Image,
+  Upload,
+  X,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { uploadImage } from '@/services/image-upload.service';
@@ -56,7 +57,46 @@ export default function Vehicles() {
   const [cor, setCor] = useState('');
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState('');
+  const [isDragging, setIsDragging] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleImageFile = useCallback((file: File) => {
+    setImageFile(file);
+    const reader = new FileReader();
+    reader.onloadend = () => setImagePreview(reader.result as string);
+    reader.readAsDataURL(file);
+  }, []);
+
+  // Paste (Ctrl+V)
+  useEffect(() => {
+    const handlePaste = (e: ClipboardEvent) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type.indexOf('image') !== -1) {
+          const file = items[i].getAsFile();
+          if (file) {
+            handleImageFile(file);
+            toast.success('Imagem colada com sucesso!');
+          }
+          break;
+        }
+      }
+    };
+    document.addEventListener('paste', handlePaste);
+    return () => document.removeEventListener('paste', handlePaste);
+  }, [handleImageFile]);
+
+  // Drag & drop
+  const handleDragOver = (e: React.DragEvent) => { e.preventDefault(); setIsDragging(true); };
+  const handleDragLeave = (e: React.DragEvent) => { e.preventDefault(); setIsDragging(false); };
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const files = e.dataTransfer.files;
+    if (files.length > 0) handleImageFile(files[0]);
+  };
 
   // Search
   const [searchTerm, setSearchTerm] = useState('');
@@ -77,16 +117,6 @@ export default function Vehicles() {
     );
   }, [vehicles, searchTerm]);
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setImageFile(file);
-      const reader = new FileReader();
-      reader.onloadend = () => setImagePreview(reader.result as string);
-      reader.readAsDataURL(file);
-    }
-  };
-
   const resetForm = () => {
     setPassaporte('');
     setPlaca('');
@@ -94,6 +124,7 @@ export default function Vehicles() {
     setCor('');
     setImageFile(null);
     setImagePreview('');
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -226,22 +257,55 @@ export default function Vehicles() {
               {/* Upload de foto */}
               <div className="mb-4">
                 <label className="text-sm text-gray-400 mb-2 block">Foto do Veículo</label>
-                <div className="flex items-center gap-4">
-                  <label className="flex items-center gap-2 px-4 py-2 bg-[#0f172a] border border-gray-600 rounded-md cursor-pointer hover:bg-gray-800 transition-colors">
-                    <Image className="h-4 w-4 text-gray-400" />
-                    <span className="text-gray-300 text-sm">
-                      {imageFile ? imageFile.name : 'Selecionar foto'}
-                    </span>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={handleImageChange}
-                      className="hidden"
-                    />
-                  </label>
-                  {imagePreview && (
-                    <div className="w-16 h-16 rounded-lg overflow-hidden border border-gray-600">
-                      <img src={imagePreview} alt="Preview" className="w-full h-full object-cover" />
+                <div
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDrop}
+                  onClick={() => fileInputRef.current?.click()}
+                  className={`
+                    relative border-2 border-dashed rounded-lg transition-all duration-200 cursor-pointer
+                    ${isDragging
+                      ? 'border-[#00ff87] bg-[#00ff87]/10'
+                      : 'border-gray-600 hover:border-[#00ff87]/50 hover:bg-gray-800/30'
+                    }
+                  `}
+                >
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => { const f = e.target.files?.[0]; if (f) handleImageFile(f); }}
+                    className="hidden"
+                  />
+
+                  {imagePreview ? (
+                    <div className="relative p-4">
+                      <img
+                        src={imagePreview}
+                        alt="Preview"
+                        className="w-full h-40 object-contain rounded-md"
+                      />
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); setImageFile(null); setImagePreview(''); if (fileInputRef.current) fileInputRef.current.value = ''; }}
+                        className="absolute top-2 right-2 p-1.5 bg-red-600 text-white rounded-full hover:bg-red-700 transition-colors"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                      <p className="text-xs text-gray-500 text-center mt-2">{imageFile?.name}</p>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center py-8 px-4">
+                      <div className="p-3 bg-[#0f172a] rounded-full mb-3">
+                        <Upload className="h-6 w-6 text-[#00ff87]" />
+                      </div>
+                      <p className="text-sm text-gray-300 font-medium mb-1">
+                        Arraste uma imagem ou clique aqui
+                      </p>
+                      <p className="text-xs text-gray-500">Aceita JPEG e PNG</p>
+                      <p className="text-xs text-[#00ff87] mt-2">
+                        Dica: Você pode colar uma imagem (Ctrl+V)
+                      </p>
                     </div>
                   )}
                 </div>

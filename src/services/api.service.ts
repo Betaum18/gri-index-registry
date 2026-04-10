@@ -20,6 +20,7 @@ import type {
   PastaInput,
   CreateResponse,
   ToggleResponse,
+  User,
   UserAdmin,
   UserInput,
   UserUpdateInput,
@@ -273,6 +274,15 @@ export async function togglePasta(id: string): Promise<ToggleResponse> {
  */
 export async function getUsers(): Promise<UserAdmin[]> {
   return get<UserAdmin[]>(API_ACTIONS.GET_USERS);
+}
+
+/**
+ * Buscar usuário por ID (para refresh de permissões)
+ */
+export async function getUserById(id: string): Promise<User | null> {
+  const result = await get<User & { error?: string }>(API_ACTIONS.GET_USER_BY_ID, { id });
+  if (result.error) return null;
+  return result;
 }
 
 /**

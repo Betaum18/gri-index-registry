@@ -28,6 +28,7 @@ export const API_ACTIONS = {
   GET_QRUS: 'getQRUs',
   GET_PASTAS: 'getPastas',
   GET_USERS: 'getUsers',
+  GET_USER_BY_ID: 'getUserById',
 
   // POST actions
   LOGIN: 'login',

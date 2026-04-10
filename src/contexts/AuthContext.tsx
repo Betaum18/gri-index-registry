@@ -36,20 +36,40 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Carregar usuário do localStorage ao iniciar
+  // Carregar usuário do localStorage e atualizar permissões da API
   useEffect(() => {
-    try {
-      const storedUser = localStorage.getItem(AUTH_STORAGE_KEY);
-      if (storedUser) {
+    const loadAndRefreshUser = async () => {
+      try {
+        const storedUser = localStorage.getItem(AUTH_STORAGE_KEY);
+        if (!storedUser) {
+          setIsLoading(false);
+          return;
+        }
+
         const parsedUser = JSON.parse(storedUser) as User;
+        // Carrega imediatamente para não bloquear a UI
         setUser(parsedUser);
+
+        // Busca permissões atualizadas da API em background
+        try {
+          const freshUser = await api.getUserById(parsedUser.id);
+          if (freshUser) {
+            const updatedUser = { ...parsedUser, ...freshUser };
+            setUser(updatedUser);
+            localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(updatedUser));
+          }
+        } catch {
+          // Silencia erros de refresh — o usuário continua com os dados em cache
+        }
+      } catch (error) {
+        console.error('Erro ao carregar usuário do localStorage:', error);
+        localStorage.removeItem(AUTH_STORAGE_KEY);
+      } finally {
+        setIsLoading(false);
       }
-    } catch (error) {
-      console.error('Erro ao carregar usuário do localStorage:', error);
-      localStorage.removeItem(AUTH_STORAGE_KEY);
-    } finally {
-      setIsLoading(false);
-    }
+    };
+
+    loadAndRefreshUser();
   }, []);
 
   /**

@@ -103,6 +103,10 @@ function doGet(e) {
         result = toggleUser(dataParam ? JSON.parse(dataParam) : {});
         break;
 
+      case 'getUserById':
+        result = getUserById(e.parameter.id);
+        break;
+
       case 'getVehicles':
         result = getVehicles();
         break;
@@ -507,6 +511,34 @@ function getUsers() {
   }
 
   return users;
+}
+
+function getUserById(id) {
+  if (!id) return { error: 'ID nao fornecido' };
+
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME_USUARIOS);
+  const data = sheet.getDataRange().getValues();
+
+  for (let i = 1; i < data.length; i++) {
+    const [rowId, usuario, , nomeCompleto, ativo, isAdmin, podeCriar, podeEditar, podeDeletar, podeGerenciarUsuarios, pastasAcesso] = data[i];
+
+    if (rowId.toString() === id.toString()) {
+      if (!parseBoolean(ativo)) return { error: 'Usuario inativo' };
+      return {
+        id: rowId.toString(),
+        usuario: usuario,
+        nome_completo: nomeCompleto,
+        is_admin: parseBoolean(isAdmin),
+        pode_criar: parseBoolean(podeCriar),
+        pode_editar: parseBoolean(podeEditar),
+        pode_deletar: parseBoolean(podeDeletar),
+        pode_gerenciar_usuarios: parseBoolean(podeGerenciarUsuarios),
+        pastas_acesso: parsePastasAcesso(pastasAcesso)
+      };
+    }
+  }
+
+  return { error: 'Usuario nao encontrado' };
 }
 
 function createUser(data) {

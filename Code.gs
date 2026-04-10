@@ -119,6 +119,10 @@ function doGet(e) {
         result = deleteVehicle(dataParam ? JSON.parse(dataParam) : {});
         break;
 
+      case 'updateVehicle':
+        result = updateVehicle(dataParam ? JSON.parse(dataParam) : {});
+        break;
+
       default:
         result = { error: 'Acao invalida: ' + action };
     }
@@ -660,6 +664,9 @@ function toggleUser(data) {
 }
 
 // FUNCOES DE VEICULOS
+// ESTRUTURA DA SHEET VEICULOS:
+// A: id | B: passaporte | C: placa | D: modelo | E: cor | F: pasta | G: data
+// H: imagem_url | I: imagem_porta_malas | J: imagem_emplacamento | K: data_cadastro
 function getVehicles() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = ss.getSheetByName(SHEET_NAME_VEICULOS);
@@ -667,7 +674,7 @@ function getVehicles() {
   // Criar aba se nao existir
   if (!sheet) {
     sheet = ss.insertSheet(SHEET_NAME_VEICULOS);
-    sheet.appendRow(['id', 'passaporte', 'placa', 'modelo', 'cor', 'imagem_url', 'data_cadastro']);
+    sheet.appendRow(['id', 'passaporte', 'placa', 'modelo', 'cor', 'pasta', 'data', 'imagem_url', 'imagem_porta_malas', 'imagem_emplacamento', 'data_cadastro']);
     return [];
   }
 
@@ -682,8 +689,12 @@ function getVehicles() {
       placa: row[2].toString(),
       modelo: row[3].toString(),
       cor: row[4].toString(),
-      imagem_url: row[5] || '',
-      data_cadastro: row[6]
+      pasta: row[5] ? row[5].toString() : '',
+      data: row[6] ? row[6].toString() : '',
+      imagem_url: row[7] || '',
+      imagem_porta_malas: row[8] || '',
+      imagem_emplacamento: row[9] || '',
+      data_cadastro: row[10] || row[6] || ''
     });
   }
 
@@ -697,7 +708,7 @@ function createVehicle(data) {
   // Criar aba se nao existir
   if (!sheet) {
     sheet = ss.insertSheet(SHEET_NAME_VEICULOS);
-    sheet.appendRow(['id', 'passaporte', 'placa', 'modelo', 'cor', 'imagem_url', 'data_cadastro']);
+    sheet.appendRow(['id', 'passaporte', 'placa', 'modelo', 'cor', 'pasta', 'data', 'imagem_url', 'imagem_porta_malas', 'imagem_emplacamento', 'data_cadastro']);
   }
 
   if (!data.passaporte || !data.placa || !data.modelo || !data.cor) {
@@ -713,11 +724,45 @@ function createVehicle(data) {
     data.placa,
     data.modelo,
     data.cor,
+    data.pasta || '',
+    data.data || '',
     data.imagem_url || '',
+    data.imagem_porta_malas || '',
+    data.imagem_emplacamento || '',
     dataCadastro
   ]);
 
   return { success: true, id: id };
+}
+
+function updateVehicle(data) {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME_VEICULOS);
+
+  if (!sheet) {
+    return { success: false, error: 'Aba de veiculos nao encontrada' };
+  }
+
+  if (!data.id) {
+    return { success: false, error: 'ID nao fornecido' };
+  }
+
+  var allData = sheet.getDataRange().getValues();
+
+  for (var i = 1; i < allData.length; i++) {
+    if (allData[i][0].toString() === data.id.toString()) {
+      if (data.placa !== undefined) sheet.getRange(i + 1, 3).setValue(data.placa);
+      if (data.modelo !== undefined) sheet.getRange(i + 1, 4).setValue(data.modelo);
+      if (data.cor !== undefined) sheet.getRange(i + 1, 5).setValue(data.cor);
+      if (data.pasta !== undefined) sheet.getRange(i + 1, 6).setValue(data.pasta);
+      if (data.data !== undefined) sheet.getRange(i + 1, 7).setValue(data.data);
+      if (data.imagem_url !== undefined) sheet.getRange(i + 1, 8).setValue(data.imagem_url);
+      if (data.imagem_porta_malas !== undefined) sheet.getRange(i + 1, 9).setValue(data.imagem_porta_malas);
+      if (data.imagem_emplacamento !== undefined) sheet.getRange(i + 1, 10).setValue(data.imagem_emplacamento);
+      return { success: true, message: 'Veiculo atualizado com sucesso' };
+    }
+  }
+
+  return { success: false, error: 'Veiculo nao encontrado' };
 }
 
 function deleteVehicle(data) {

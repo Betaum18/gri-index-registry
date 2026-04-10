@@ -49,6 +49,7 @@ export const API_ACTIONS = {
   // Vehicles
   GET_VEHICLES: 'getVehicles',
   CREATE_VEHICLE: 'createVehicle',
+  UPDATE_VEHICLE: 'updateVehicle',
   DELETE_VEHICLE: 'deleteVehicle',
 } as const;
 

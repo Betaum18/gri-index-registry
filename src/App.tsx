@@ -15,6 +15,7 @@ import PastasAdmin from "./pages/PastasAdmin";
 import UsersAdmin from "./pages/UsersAdmin";
 import Reports from "./pages/Reports";
 import Vehicles from "./pages/Vehicles";
+import VehicleDashboard from "./pages/VehicleDashboard";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -82,6 +83,14 @@ const App = () => (
                 element={
                   <ProtectedRoute>
                     <Vehicles />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/veiculos-dashboard"
+                element={
+                  <ProtectedRoute>
+                    <VehicleDashboard />
                   </ProtectedRoute>
                 }
               />

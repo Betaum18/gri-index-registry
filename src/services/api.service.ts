@@ -26,6 +26,7 @@ import type {
   UserUpdateInput,
   Vehicle,
   VehicleInput,
+  VehicleUpdateInput,
 } from './types';
 
 /**
@@ -327,6 +328,13 @@ export async function getVehicles(): Promise<Vehicle[]> {
  */
 export async function createVehicle(input: VehicleInput): Promise<CreateResponse> {
   return post<CreateResponse>(API_ACTIONS.CREATE_VEHICLE, input);
+}
+
+/**
+ * Atualizar Veículo
+ */
+export async function updateVehicle(data: VehicleUpdateInput): Promise<DeleteResponse> {
+  return post<DeleteResponse>(API_ACTIONS.UPDATE_VEHICLE, data);
 }
 
 /**

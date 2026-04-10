@@ -1,15 +1,23 @@
 /**
  * Página de Cadastro de Veículos
- * Vincula veículos a passaportes com placa, modelo, cor e foto
+ * Vincula veículos a passaportes com placa, modelo, cor, pasta, data e até 3 fotos
  */
 
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { useVehicles } from '@/hooks/queries/useVehicles';
+import { usePastas } from '@/hooks/queries/usePastas';
 import { useCreateVehicle, useDeleteVehicle } from '@/hooks/mutations/useVehicleMutations';
 import { useAuth } from '@/contexts/AuthContext';
 import Header from '@/components/Header';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import {
   Table,
   TableBody,
@@ -37,38 +45,64 @@ import {
   FileText,
   Upload,
   X,
+  FolderOpen,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { uploadImage } from '@/services/image-upload.service';
 
+interface PhotoSlot {
+  file: File | null;
+  preview: string;
+}
+
+function usePhotoSlot() {
+  const [slot, setSlot] = useState<PhotoSlot>({ file: null, preview: '' });
+  const ref = useRef<HTMLInputElement>(null);
+
+  const handle = useCallback((file: File) => {
+    setSlot({ file, preview: '' });
+    const reader = new FileReader();
+    reader.onloadend = () => setSlot({ file, preview: reader.result as string });
+    reader.readAsDataURL(file);
+  }, []);
+
+  const clear = useCallback(() => {
+    setSlot({ file: null, preview: '' });
+    if (ref.current) ref.current.value = '';
+  }, []);
+
+  return { slot, handle, clear, ref };
+}
+
 export default function Vehicles() {
   const { data: vehicles, isLoading } = useVehicles();
+  const { data: pastas } = usePastas();
   const createVehicle = useCreateVehicle();
   const deleteVehicle = useDeleteVehicle();
-  const { hasPermission, isAdmin } = useAuth();
+  const { hasPermission, getAllowedPastas } = useAuth();
 
   const canCreate = hasPermission('pode_criar');
   const canDelete = hasPermission('pode_deletar');
+
+  const allowedPastas = useMemo(() => {
+    if (!pastas) return [];
+    return getAllowedPastas(pastas).filter(p => p.ativo);
+  }, [pastas, getAllowedPastas]);
 
   // Form state
   const [passaporte, setPassaporte] = useState('');
   const [placa, setPlaca] = useState('');
   const [modelo, setModelo] = useState('');
   const [cor, setCor] = useState('');
-  const [imageFile, setImageFile] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState('');
-  const [isDragging, setIsDragging] = useState(false);
+  const [pasta, setPasta] = useState('');
+  const [data, setData] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleImageFile = useCallback((file: File) => {
-    setImageFile(file);
-    const reader = new FileReader();
-    reader.onloadend = () => setImagePreview(reader.result as string);
-    reader.readAsDataURL(file);
-  }, []);
+  const photoVeiculo = usePhotoSlot();
+  const photoPortaMalas = usePhotoSlot();
+  const photoEmplacamento = usePhotoSlot();
 
-  // Paste (Ctrl+V)
+  // Paste (Ctrl+V) -> foto do veículo
   useEffect(() => {
     const handlePaste = (e: ClipboardEvent) => {
       const items = e.clipboardData?.items;
@@ -77,8 +111,8 @@ export default function Vehicles() {
         if (items[i].type.indexOf('image') !== -1) {
           const file = items[i].getAsFile();
           if (file) {
-            handleImageFile(file);
-            toast.success('Imagem colada com sucesso!');
+            photoVeiculo.handle(file);
+            toast.success('Imagem colada na foto do veículo!');
           }
           break;
         }
@@ -86,17 +120,7 @@ export default function Vehicles() {
     };
     document.addEventListener('paste', handlePaste);
     return () => document.removeEventListener('paste', handlePaste);
-  }, [handleImageFile]);
-
-  // Drag & drop
-  const handleDragOver = (e: React.DragEvent) => { e.preventDefault(); setIsDragging(true); };
-  const handleDragLeave = (e: React.DragEvent) => { e.preventDefault(); setIsDragging(false); };
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-    const files = e.dataTransfer.files;
-    if (files.length > 0) handleImageFile(files[0]);
-  };
+  }, [photoVeiculo]);
 
   // Search
   const [searchTerm, setSearchTerm] = useState('');
@@ -122,9 +146,11 @@ export default function Vehicles() {
     setPlaca('');
     setModelo('');
     setCor('');
-    setImageFile(null);
-    setImagePreview('');
-    if (fileInputRef.current) fileInputRef.current.value = '';
+    setPasta('');
+    setData('');
+    photoVeiculo.clear();
+    photoPortaMalas.clear();
+    photoEmplacamento.clear();
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -135,20 +161,34 @@ export default function Vehicles() {
       return;
     }
 
+    if (!photoVeiculo.slot.file) {
+      toast.error('A foto do veículo é obrigatória');
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
-      let imageUrl = '';
+      // Upload foto principal (obrigatória)
+      const uploadPrincipal = await uploadImage(photoVeiculo.slot.file);
+      if (!uploadPrincipal.success || !uploadPrincipal.url) {
+        toast.error('Erro ao fazer upload da foto do veículo: ' + (uploadPrincipal.error || ''));
+        setIsSubmitting(false);
+        return;
+      }
 
-      if (imageFile) {
-        const uploadResult = await uploadImage(imageFile);
-        if (uploadResult.success && uploadResult.url) {
-          imageUrl = uploadResult.url;
-        } else {
-          toast.error('Erro ao fazer upload da foto: ' + (uploadResult.error || ''));
-          setIsSubmitting(false);
-          return;
-        }
+      // Upload foto porta-malas (opcional)
+      let urlPortaMalas = '';
+      if (photoPortaMalas.slot.file) {
+        const res = await uploadImage(photoPortaMalas.slot.file);
+        if (res.success && res.url) urlPortaMalas = res.url;
+      }
+
+      // Upload foto emplacamento (opcional)
+      let urlEmplacamento = '';
+      if (photoEmplacamento.slot.file) {
+        const res = await uploadImage(photoEmplacamento.slot.file);
+        if (res.success && res.url) urlEmplacamento = res.url;
       }
 
       await createVehicle.mutateAsync({
@@ -156,7 +196,11 @@ export default function Vehicles() {
         placa: placa.trim().toUpperCase(),
         modelo: modelo.trim(),
         cor: cor.trim(),
-        imagem_url: imageUrl,
+        pasta: pasta,
+        data: data,
+        imagem_url: uploadPrincipal.url,
+        imagem_porta_malas: urlPortaMalas,
+        imagem_emplacamento: urlEmplacamento,
       });
 
       toast.success('Veículo cadastrado com sucesso!');
@@ -250,63 +294,60 @@ export default function Vehicles() {
                     required
                   />
                 </div>
+                <div>
+                  <label className="text-sm text-gray-400 mb-2 block flex items-center gap-1">
+                    <FolderOpen className="h-3 w-3" />
+                    Pasta
+                  </label>
+                  <Select value={pasta || '__none__'} onValueChange={(v) => setPasta(v === '__none__' ? '' : v)}>
+                    <SelectTrigger className="bg-[#0f172a] border-gray-600 text-white">
+                      <SelectValue placeholder="Selecione uma pasta" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-[#1e293b] border-gray-700">
+                      <SelectItem value="__none__" className="text-gray-400">Nenhuma</SelectItem>
+                      {allowedPastas.map((p) => (
+                        <SelectItem key={p.id} value={p.nome} className="text-white">
+                          {p.codigo} - {p.nome}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <label className="text-sm text-gray-400 mb-2 block">Data do Registro</label>
+                  <Input
+                    type="date"
+                    value={data}
+                    onChange={(e) => setData(e.target.value)}
+                    className="bg-[#0f172a] border-gray-600 text-white"
+                  />
+                </div>
               </div>
 
-              {/* Upload de foto */}
-              <div className="mb-4">
-                <label className="text-sm text-gray-400 mb-2 block">Foto do Veículo</label>
-                <div
-                  onDragOver={handleDragOver}
-                  onDragLeave={handleDragLeave}
-                  onDrop={handleDrop}
-                  onClick={() => fileInputRef.current?.click()}
-                  className={`
-                    relative border-2 border-dashed rounded-lg transition-all duration-200 cursor-pointer
-                    ${isDragging
-                      ? 'border-[#00ff87] bg-[#00ff87]/10'
-                      : 'border-gray-600 hover:border-[#00ff87]/50 hover:bg-gray-800/30'
-                    }
-                  `}
-                >
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => { const f = e.target.files?.[0]; if (f) handleImageFile(f); }}
-                    className="hidden"
-                  />
-
-                  {imagePreview ? (
-                    <div className="relative p-4">
-                      <img
-                        src={imagePreview}
-                        alt="Preview"
-                        className="w-full h-40 object-contain rounded-md"
-                      />
-                      <button
-                        type="button"
-                        onClick={(e) => { e.stopPropagation(); setImageFile(null); setImagePreview(''); if (fileInputRef.current) fileInputRef.current.value = ''; }}
-                        className="absolute top-2 right-2 p-1.5 bg-red-600 text-white rounded-full hover:bg-red-700 transition-colors"
-                      >
-                        <X className="h-4 w-4" />
-                      </button>
-                      <p className="text-xs text-gray-500 text-center mt-2">{imageFile?.name}</p>
-                    </div>
-                  ) : (
-                    <div className="flex flex-col items-center justify-center py-8 px-4">
-                      <div className="p-3 bg-[#0f172a] rounded-full mb-3">
-                        <Upload className="h-6 w-6 text-[#00ff87]" />
-                      </div>
-                      <p className="text-sm text-gray-300 font-medium mb-1">
-                        Arraste uma imagem ou clique aqui
-                      </p>
-                      <p className="text-xs text-gray-500">Aceita JPEG e PNG</p>
-                      <p className="text-xs text-[#00ff87] mt-2">
-                        Dica: Você pode colar uma imagem (Ctrl+V)
-                      </p>
-                    </div>
-                  )}
-                </div>
+              {/* Upload de fotos */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                <PhotoUpload
+                  label="Foto do Veículo *"
+                  slot={photoVeiculo.slot}
+                  fileRef={photoVeiculo.ref}
+                  onFile={photoVeiculo.handle}
+                  onClear={photoVeiculo.clear}
+                  hint="Obrigatório • Ctrl+V para colar"
+                />
+                <PhotoUpload
+                  label="Porta-malas (opcional)"
+                  slot={photoPortaMalas.slot}
+                  fileRef={photoPortaMalas.ref}
+                  onFile={photoPortaMalas.handle}
+                  onClear={photoPortaMalas.clear}
+                />
+                <PhotoUpload
+                  label="Emplacamento (opcional)"
+                  slot={photoEmplacamento.slot}
+                  fileRef={photoEmplacamento.ref}
+                  onFile={photoEmplacamento.handle}
+                  onClear={photoEmplacamento.clear}
+                />
               </div>
 
               <Button
@@ -371,6 +412,8 @@ export default function Vehicles() {
                   <TableHead className="text-gray-400">Placa</TableHead>
                   <TableHead className="text-gray-400">Modelo</TableHead>
                   <TableHead className="text-gray-400">Cor</TableHead>
+                  <TableHead className="text-gray-400">Pasta</TableHead>
+                  <TableHead className="text-gray-400">Data</TableHead>
                   {canDelete && (
                     <TableHead className="w-20 text-gray-400">Ações</TableHead>
                   )}
@@ -405,6 +448,10 @@ export default function Vehicles() {
                     </TableCell>
                     <TableCell className="text-gray-300">{vehicle.modelo}</TableCell>
                     <TableCell className="text-gray-300">{vehicle.cor}</TableCell>
+                    <TableCell className="text-gray-300">{vehicle.pasta || '—'}</TableCell>
+                    <TableCell className="text-gray-300">
+                      {vehicle.data ? new Date(vehicle.data + 'T12:00:00').toLocaleDateString('pt-BR') : '—'}
+                    </TableCell>
                     {canDelete && (
                       <TableCell>
                         <Button
@@ -447,6 +494,83 @@ export default function Vehicles() {
           </AlertDialogContent>
         </AlertDialog>
       </main>
+    </div>
+  );
+}
+
+// Componente reutilizável para slot de foto
+interface PhotoUploadProps {
+  label: string;
+  slot: PhotoSlot;
+  fileRef: React.RefObject<HTMLInputElement>;
+  onFile: (file: File) => void;
+  onClear: () => void;
+  hint?: string;
+}
+
+function PhotoUpload({ label, slot, fileRef, onFile, onClear, hint }: PhotoUploadProps) {
+  const [isDragging, setIsDragging] = useState(false);
+
+  const handleDragOver = (e: React.DragEvent) => { e.preventDefault(); setIsDragging(true); };
+  const handleDragLeave = (e: React.DragEvent) => { e.preventDefault(); setIsDragging(false); };
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const files = e.dataTransfer.files;
+    if (files.length > 0) onFile(files[0]);
+  };
+
+  return (
+    <div>
+      <label className="text-sm text-gray-400 mb-2 block">{label}</label>
+      <div
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+        onClick={() => fileRef.current?.click()}
+        className={`
+          relative border-2 border-dashed rounded-lg transition-all duration-200 cursor-pointer
+          ${isDragging
+            ? 'border-[#00ff87] bg-[#00ff87]/10'
+            : 'border-gray-600 hover:border-[#00ff87]/50 hover:bg-gray-800/30'
+          }
+        `}
+      >
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/*"
+          onChange={(e) => { const f = e.target.files?.[0]; if (f) onFile(f); }}
+          className="hidden"
+        />
+
+        {slot.preview ? (
+          <div className="relative p-3">
+            <img
+              src={slot.preview}
+              alt="Preview"
+              className="w-full h-32 object-contain rounded-md"
+            />
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onClear(); }}
+              className="absolute top-1 right-1 p-1 bg-red-600 text-white rounded-full hover:bg-red-700 transition-colors"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          </div>
+        ) : (
+          <div className="flex flex-col items-center justify-center py-6 px-3">
+            <div className="p-2 bg-[#0f172a] rounded-full mb-2">
+              <Upload className="h-5 w-5 text-[#00ff87]" />
+            </div>
+            <p className="text-xs text-gray-300 font-medium mb-1 text-center">
+              Arraste ou clique
+            </p>
+            {hint && <p className="text-xs text-[#00ff87] text-center">{hint}</p>}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

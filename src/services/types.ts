@@ -116,7 +116,11 @@ export interface Vehicle {
   placa: string;
   modelo: string;
   cor: string;
+  pasta: string;
+  data: string;
   imagem_url: string;
+  imagem_porta_malas: string;
+  imagem_emplacamento: string;
   data_cadastro: string;
 }
 
@@ -128,7 +132,26 @@ export interface VehicleInput {
   placa: string;
   modelo: string;
   cor: string;
+  pasta?: string;
+  data?: string;
   imagem_url?: string;
+  imagem_porta_malas?: string;
+  imagem_emplacamento?: string;
+}
+
+/**
+ * Input para atualizar veículo
+ */
+export interface VehicleUpdateInput {
+  id: string;
+  placa?: string;
+  modelo?: string;
+  cor?: string;
+  pasta?: string;
+  data?: string;
+  imagem_url?: string;
+  imagem_porta_malas?: string;
+  imagem_emplacamento?: string;
 }
 
 /**

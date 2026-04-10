@@ -130,7 +130,7 @@ export default function Vehicles() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!passaporte.trim() || !placa.trim() || !modelo.trim() || !cor.trim()) {
+    if (!passaporte.trim() || !cor.trim()) {
       toast.error('Preencha todos os campos obrigatórios');
       return;
     }
@@ -220,25 +220,23 @@ export default function Vehicles() {
                   />
                 </div>
                 <div>
-                  <label className="text-sm text-gray-400 mb-2 block">Placa *</label>
+                  <label className="text-sm text-gray-400 mb-2 block">Placa</label>
                   <Input
                     type="text"
                     placeholder="Ex: ABC1D23"
                     value={placa}
                     onChange={(e) => setPlaca(e.target.value.toUpperCase())}
                     className="bg-[#0f172a] border-gray-600 text-white uppercase"
-                    required
                   />
                 </div>
                 <div>
-                  <label className="text-sm text-gray-400 mb-2 block">Modelo *</label>
+                  <label className="text-sm text-gray-400 mb-2 block">Modelo</label>
                   <Input
                     type="text"
                     placeholder="Ex: Honda Civic"
                     value={modelo}
                     onChange={(e) => setModelo(e.target.value)}
                     className="bg-[#0f172a] border-gray-600 text-white"
-                    required
                   />
                 </div>
                 <div>

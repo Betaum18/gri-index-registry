@@ -3,13 +3,26 @@
  * Mostra todos os registros de um passaporte específico
  */
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useRegistrations } from '@/hooks/queries/useRegistrations';
 import { useVehicles } from '@/hooks/queries/useVehicles';
+import { useQRUs } from '@/hooks/queries/useQRUs';
+import { usePastas } from '@/hooks/queries/usePastas';
 import { useAuth } from '@/contexts/AuthContext';
+import { useDeleteRegistration } from '@/hooks/mutations/useDeleteRegistration';
+import { useUpdateRegistration } from '@/hooks/mutations/useUpdateRegistration';
 import Header from '@/components/Header';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import {
   Table,
   TableBody,
@@ -18,14 +31,82 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Loader2, ArrowLeft, User, FileText, MapPin, Calendar, FolderOpen, Download, Car } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import {
+  Loader2,
+  ArrowLeft,
+  User,
+  FileText,
+  MapPin,
+  Calendar,
+  FolderOpen,
+  Download,
+  Car,
+  Pencil,
+  Trash2,
+} from 'lucide-react';
+import { toast } from 'sonner';
+import type { Registration } from '@/services/types';
+
+/** Formata uma data vinda do campo `data` (YYYY-MM-DD) sem risco de "Invalid date" */
+function formatDate(dateStr: string | null | undefined): string {
+  if (!dateStr) return '—';
+  const iso = dateStr.length === 10 ? dateStr + 'T12:00:00' : dateStr;
+  const d = new Date(iso);
+  return isNaN(d.getTime()) ? '—' : d.toLocaleDateString('pt-BR');
+}
+
+/** Formata um campo datetime (ISO) */
+function formatDateTime(dateStr: string | null | undefined): string {
+  if (!dateStr) return '-';
+  const d = new Date(dateStr);
+  return isNaN(d.getTime()) ? '-' : d.toLocaleString('pt-BR');
+}
 
 export default function PassportDetails() {
   const { passaporte } = useParams<{ passaporte: string }>();
   const navigate = useNavigate();
   const { data: registrations, isLoading } = useRegistrations();
   const { data: vehicles } = useVehicles();
-  const { getAllowedPastas } = useAuth();
+  const { data: qrus } = useQRUs();
+  const { data: pastas } = usePastas();
+  const { getAllowedPastas, hasPermission } = useAuth();
+  const deleteRegistration = useDeleteRegistration();
+  const updateRegistration = useUpdateRegistration();
+
+  const canEdit = hasPermission('pode_editar');
+  const canDelete = hasPermission('pode_deletar');
+
+  // Pastas permitidas ao usuário
+  const allowedPastas = useMemo(() => {
+    if (!pastas) return [];
+    return getAllowedPastas(pastas).filter((p) => p.ativo);
+  }, [pastas, getAllowedPastas]);
+
+  // Edição individual
+  const [editingReg, setEditingReg] = useState<Registration | null>(null);
+  const [editForm, setEditForm] = useState({ nome: '', qru: '', pasta: '', data: '' });
+  const [isSaving, setIsSaving] = useState(false);
+
+  // Exclusão individual
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Filtrar registros pelo passaporte
   const passportRegistrations = useMemo(() => {
@@ -34,20 +115,19 @@ export default function PassportDetails() {
     return registrations
       .filter((reg) => String(reg.passaporte).trim() === String(passaporte).trim())
       .sort((a, b) => {
-        // Ordenar por data de cadastro (mais recente primeiro)
         const dateA = new Date(a.data_cadastro || (a.data + 'T12:00:00')).getTime();
         const dateB = new Date(b.data_cadastro || (b.data + 'T12:00:00')).getTime();
         return dateB - dateA;
       });
   }, [registrations, passaporte]);
 
-  // Pegar a foto mais recente (primeiro item após ordenação)
+  // Pegar a foto mais recente
   const latestPhoto = passportRegistrations.find((reg) => reg.imagem_url)?.imagem_url;
 
-  // Pegar o nome do primeiro registro
+  // Nome do primeiro registro
   const personName = passportRegistrations[0]?.nome || 'Desconhecido';
 
-  // Veículos vinculados a este passaporte
+  // Veículos vinculados
   const passportVehicles = useMemo(() => {
     if (!vehicles || !passaporte) return [];
     return vehicles.filter(
@@ -69,6 +149,50 @@ export default function PassportDetails() {
       URL.revokeObjectURL(blobUrl);
     } catch {
       window.open(url, '_blank');
+    }
+  };
+
+  const handleOpenEdit = (reg: Registration) => {
+    setEditingReg(reg);
+    setEditForm({
+      nome: reg.nome || '',
+      qru: reg.qru || '',
+      pasta: reg.pasta || '',
+      data: (reg.data || '').substring(0, 10),
+    });
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingReg) return;
+    setIsSaving(true);
+    try {
+      await updateRegistration.mutateAsync({
+        id: editingReg.id,
+        nome: editForm.nome,
+        qru: editForm.qru,
+        pasta: editForm.pasta,
+        data: editForm.data,
+      });
+      toast.success('Registro atualizado com sucesso!');
+      setEditingReg(null);
+    } catch {
+      toast.error('Erro ao atualizar registro');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return;
+    setIsDeleting(true);
+    try {
+      await deleteRegistration.mutateAsync(deleteTarget);
+      toast.success('Registro removido com sucesso!');
+      setDeleteTarget(null);
+    } catch {
+      toast.error('Erro ao remover registro');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -107,6 +231,9 @@ export default function PassportDetails() {
       </div>
     );
   }
+
+  const firstReg = passportRegistrations[passportRegistrations.length - 1];
+  const lastReg  = passportRegistrations[0];
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#0f172a] to-[#1e293b]">
@@ -178,18 +305,14 @@ export default function PassportDetails() {
                 <div className="bg-[#0f172a] p-4 rounded-lg border border-gray-700">
                   <p className="text-xs text-gray-400 mb-1">Primeiro Registro</p>
                   <p className="text-lg font-bold text-white">
-                    {passportRegistrations[passportRegistrations.length - 1]?.data
-                      ? new Date(passportRegistrations[passportRegistrations.length - 1].data + 'T12:00:00').toLocaleDateString('pt-BR')
-                      : '—'}
+                    {formatDate(firstReg?.data)}
                   </p>
                 </div>
 
                 <div className="bg-[#0f172a] p-4 rounded-lg border border-gray-700">
                   <p className="text-xs text-gray-400 mb-1">Último Registro</p>
                   <p className="text-lg font-bold text-white">
-                    {passportRegistrations[0]?.data
-                      ? new Date(passportRegistrations[0].data + 'T12:00:00').toLocaleDateString('pt-BR')
-                      : '—'}
+                    {formatDate(lastReg?.data)}
                   </p>
                 </div>
               </div>
@@ -214,6 +337,9 @@ export default function PassportDetails() {
                 <TableHead className="text-gray-400">Pasta</TableHead>
                 <TableHead className="text-gray-400">Data do Registro</TableHead>
                 <TableHead className="text-gray-400">Data de Cadastro</TableHead>
+                {(canEdit || canDelete) && (
+                  <TableHead className="text-gray-400 w-24">Ações</TableHead>
+                )}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -268,16 +394,42 @@ export default function PassportDetails() {
                   <TableCell>
                     <span className="text-gray-300 flex items-center gap-2">
                       <Calendar className="h-3 w-3 text-[#00ff87]" />
-                      {new Date(registration.data + 'T12:00:00').toLocaleDateString('pt-BR')}
+                      {formatDate(registration.data)}
                     </span>
                   </TableCell>
                   <TableCell>
                     <span className="text-gray-400 text-sm">
-                      {registration.data_cadastro
-                        ? new Date(registration.data_cadastro).toLocaleString('pt-BR')
-                        : '-'}
+                      {formatDateTime(registration.data_cadastro)}
                     </span>
                   </TableCell>
+                  {(canEdit || canDelete) && (
+                    <TableCell>
+                      <div className="flex items-center gap-1">
+                        {canEdit && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleOpenEdit(registration)}
+                            className="border-blue-500 text-blue-400 hover:bg-blue-500/10 h-8 w-8 p-0"
+                            title="Editar registro"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
+                        {canDelete && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setDeleteTarget(registration.id)}
+                            className="border-red-500/50 text-red-400 hover:bg-red-500/10 h-8 w-8 p-0"
+                            title="Remover registro"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
+                      </div>
+                    </TableCell>
+                  )}
                 </TableRow>
               ))}
             </TableBody>
@@ -331,6 +483,115 @@ export default function PassportDetails() {
           </div>
         )}
       </main>
+
+      {/* Modal de Edição */}
+      <Dialog open={!!editingReg} onOpenChange={(open) => { if (!open) setEditingReg(null); }}>
+        <DialogContent className="bg-[#1e293b] border-gray-700 text-white">
+          <DialogHeader>
+            <DialogTitle className="text-white">Editar Registro</DialogTitle>
+          </DialogHeader>
+          {editingReg && (
+            <div className="space-y-4 py-2">
+              <div>
+                <Label className="text-gray-400 mb-1 block text-sm">Passaporte</Label>
+                <Input value={editingReg.passaporte} disabled className="bg-[#0f172a] border-gray-600 text-gray-500" />
+              </div>
+              <div>
+                <Label className="text-gray-400 mb-1 block text-sm">Nome *</Label>
+                <Input
+                  value={editForm.nome}
+                  onChange={(e) => setEditForm((f) => ({ ...f, nome: e.target.value }))}
+                  className="bg-[#0f172a] border-gray-600 text-white"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-gray-400 mb-1 block text-sm">QRU *</Label>
+                  <Select value={editForm.qru} onValueChange={(v) => setEditForm((f) => ({ ...f, qru: v }))}>
+                    <SelectTrigger className="bg-[#0f172a] border-gray-600 text-white">
+                      <SelectValue placeholder="Selecione" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-[#1e293b] border-gray-700">
+                      {qrus?.filter((q) => q.ativo).map((qru) => (
+                        <SelectItem key={qru.id} value={qru.nome} className="text-white">
+                          {qru.codigo} - {qru.nome}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="text-gray-400 mb-1 block text-sm">Pasta *</Label>
+                  <Select value={editForm.pasta} onValueChange={(v) => setEditForm((f) => ({ ...f, pasta: v }))}>
+                    <SelectTrigger className="bg-[#0f172a] border-gray-600 text-white">
+                      <SelectValue placeholder="Selecione" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-[#1e293b] border-gray-700">
+                      {allowedPastas.map((pasta) => (
+                        <SelectItem key={pasta.id} value={pasta.nome} className="text-white">
+                          {pasta.codigo} - {pasta.nome}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div>
+                <Label className="text-gray-400 mb-1 block text-sm">Data *</Label>
+                <Input
+                  type="date"
+                  value={editForm.data}
+                  onChange={(e) => setEditForm((f) => ({ ...f, data: e.target.value }))}
+                  className="bg-[#0f172a] border-gray-600 text-white"
+                />
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setEditingReg(null)}
+              className="border-gray-600 text-gray-300 hover:bg-gray-700"
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleSaveEdit}
+              disabled={isSaving || !editForm.nome || !editForm.qru || !editForm.pasta || !editForm.data}
+              className="bg-[#00ff87] text-[#0f172a] hover:bg-[#00ff87]/90 font-semibold"
+            >
+              {isSaving ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Salvando...</> : 'Salvar'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog de confirmação de exclusão individual */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}>
+        <AlertDialogContent className="bg-[#1e293b] border-gray-700">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-white">Confirmar Remoção</AlertDialogTitle>
+            <AlertDialogDescription className="text-gray-400">
+              Este registro será removido permanentemente do histórico deste passaporte. Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              onClick={() => setDeleteTarget(null)}
+              className="border-gray-600 text-gray-300 hover:bg-gray-700"
+            >
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmDelete}
+              disabled={isDeleting}
+              className="bg-red-600 text-white hover:bg-red-700"
+            >
+              {isDeleting ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Removendo...</> : 'Remover'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

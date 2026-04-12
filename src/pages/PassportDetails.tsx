@@ -35,8 +35,8 @@ export default function PassportDetails() {
       .filter((reg) => String(reg.passaporte).trim() === String(passaporte).trim())
       .sort((a, b) => {
         // Ordenar por data de cadastro (mais recente primeiro)
-        const dateA = new Date(a.data_cadastro || a.data).getTime();
-        const dateB = new Date(b.data_cadastro || b.data).getTime();
+        const dateA = new Date(a.data_cadastro || (a.data + 'T12:00:00')).getTime();
+        const dateB = new Date(b.data_cadastro || (b.data + 'T12:00:00')).getTime();
         return dateB - dateA;
       });
   }, [registrations, passaporte]);
@@ -178,16 +178,18 @@ export default function PassportDetails() {
                 <div className="bg-[#0f172a] p-4 rounded-lg border border-gray-700">
                   <p className="text-xs text-gray-400 mb-1">Primeiro Registro</p>
                   <p className="text-lg font-bold text-white">
-                    {new Date(
-                      passportRegistrations[passportRegistrations.length - 1]?.data
-                    ).toLocaleDateString('pt-BR')}
+                    {passportRegistrations[passportRegistrations.length - 1]?.data
+                      ? new Date(passportRegistrations[passportRegistrations.length - 1].data + 'T12:00:00').toLocaleDateString('pt-BR')
+                      : '—'}
                   </p>
                 </div>
 
                 <div className="bg-[#0f172a] p-4 rounded-lg border border-gray-700">
                   <p className="text-xs text-gray-400 mb-1">Último Registro</p>
                   <p className="text-lg font-bold text-white">
-                    {new Date(passportRegistrations[0]?.data).toLocaleDateString('pt-BR')}
+                    {passportRegistrations[0]?.data
+                      ? new Date(passportRegistrations[0].data + 'T12:00:00').toLocaleDateString('pt-BR')
+                      : '—'}
                   </p>
                 </div>
               </div>
@@ -266,7 +268,7 @@ export default function PassportDetails() {
                   <TableCell>
                     <span className="text-gray-300 flex items-center gap-2">
                       <Calendar className="h-3 w-3 text-[#00ff87]" />
-                      {new Date(registration.data).toLocaleDateString('pt-BR')}
+                      {new Date(registration.data + 'T12:00:00').toLocaleDateString('pt-BR')}
                     </span>
                   </TableCell>
                   <TableCell>
@@ -316,6 +318,12 @@ export default function PassportDetails() {
                     <p className="text-white font-semibold font-mono text-lg">{vehicle.placa}</p>
                     <p className="text-gray-300 text-sm">{vehicle.modelo}</p>
                     <p className="text-gray-400 text-sm">Cor: {vehicle.cor}</p>
+                    {vehicle.pasta && (
+                      <p className="text-[#00ff87]/80 text-xs mt-1 flex items-center gap-1">
+                        <FolderOpen className="h-3 w-3" />
+                        {vehicle.pasta}
+                      </p>
+                    )}
                   </div>
                 </div>
               ))}

@@ -127,6 +127,8 @@ export default function Dashboard() {
       registrations.forEach((reg) => {
         const regPasta = (reg.pasta || '').toString().trim().toLowerCase();
         if (!allowedPastaNames.includes(regPasta)) return;
+        // "Não Associados" não conta como afiliação para fins de múltiplas pastas
+        if (regPasta === 'não associados' || regPasta === 'nao associados') return;
         const pastas = allPastasMap.get(reg.passaporte) || [];
         if (!pastas.includes(reg.pasta)) pastas.push(reg.pasta);
         allPastasMap.set(reg.passaporte, pastas);
@@ -152,7 +154,7 @@ export default function Dashboard() {
     const grouped = new Map<string, GroupedPerson>();
     filtered.forEach((reg) => {
       const existing = grouped.get(reg.passaporte);
-      const regDate = new Date(reg.data_cadastro || reg.data).getTime();
+      const regDate = new Date(reg.data_cadastro || (reg.data + 'T12:00:00')).getTime();
       if (!existing) {
         grouped.set(reg.passaporte, {
           passaporte: reg.passaporte,
@@ -173,7 +175,7 @@ export default function Dashboard() {
           existing.latestPhoto = reg.imagem_url;
           (existing as GroupedPerson & { _latestPhotoDate: number })._latestPhotoDate = regDate;
         }
-        const existingDate = new Date(existing.lastDate).getTime();
+        const existingDate = new Date(existing.lastDate.includes('T') ? existing.lastDate : existing.lastDate + 'T12:00:00').getTime();
         if (regDate > existingDate) {
           existing.nome = reg.nome;
           existing.lastQRU = reg.qru;
@@ -185,7 +187,11 @@ export default function Dashboard() {
 
     let results = Array.from(grouped.values());
     if (showMultiplePastas) results = results.filter(p => p.allPastas.length >= 2);
-    return results.sort((a, b) => new Date(b.lastDate).getTime() - new Date(a.lastDate).getTime());
+    return results.sort((a, b) => {
+      const dateB = new Date(b.lastDate.includes('T') ? b.lastDate : b.lastDate + 'T12:00:00').getTime();
+      const dateA = new Date(a.lastDate.includes('T') ? a.lastDate : a.lastDate + 'T12:00:00').getTime();
+      return dateB - dateA;
+    });
   }, [registrations, allowedPastas, selectedPasta, selectedQRU, searchTerm, isSearching, showMultiplePastas, dateFrom, dateTo]);
 
   // Quando os resultados mudam, limpar seleções que saíram da lista
@@ -230,7 +236,7 @@ export default function Dashboard() {
     const regs = registrations.filter(r => String(r.passaporte) === String(passaporte));
     if (!regs.length) return null;
     return regs.sort((a, b) =>
-      new Date(b.data_cadastro || b.data).getTime() - new Date(a.data_cadastro || a.data).getTime()
+      new Date(b.data_cadastro || (b.data + 'T12:00:00')).getTime() - new Date(a.data_cadastro || (a.data + 'T12:00:00')).getTime()
     )[0];
   };
 

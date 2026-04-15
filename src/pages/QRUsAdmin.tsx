@@ -36,24 +36,24 @@ export default function QRUsAdmin() {
   const { mutate: toggleQRU, isPending: isToggling } = useToggleQRU();
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [formData, setFormData] = useState({ codigo: '', nome: '' });
+  const [formData, setFormData] = useState({ nome: '' });
 
   const handleCreate = (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!formData.codigo.trim() || !formData.nome.trim()) {
+    if (!formData.nome.trim()) {
       toast({
-        title: 'Campos obrigatórios',
-        description: 'Preencha código e nome',
+        title: 'Campo obrigatório',
+        description: 'Preencha o nome',
         variant: 'destructive',
       });
       return;
     }
 
-    createQRU(formData, {
+    createQRU({ codigo: formData.nome, nome: formData.nome }, {
       onSuccess: () => {
         toast({ title: 'QRU criado com sucesso!' });
-        setFormData({ codigo: '', nome: '' });
+        setFormData({ nome: '' });
         setIsDialogOpen(false);
       },
       onError: (error: any) => {
@@ -132,17 +132,6 @@ export default function QRUsAdmin() {
 
               <form onSubmit={handleCreate} className="space-y-4 mt-4">
                 <div>
-                  <Label htmlFor="codigo">Código</Label>
-                  <Input
-                    id="codigo"
-                    value={formData.codigo}
-                    onChange={(e) => setFormData({ ...formData, codigo: e.target.value })}
-                    placeholder="Ex: QRU01"
-                    className="bg-[#0f172a] border-gray-600 text-white"
-                  />
-                </div>
-
-                <div>
                   <Label htmlFor="nome">Nome</Label>
                   <Input
                     id="nome"
@@ -196,7 +185,6 @@ export default function QRUsAdmin() {
             <Table>
               <TableHeader>
                 <TableRow className="border-gray-700 hover:bg-[#0f172a]">
-                  <TableHead className="text-gray-300">Código</TableHead>
                   <TableHead className="text-gray-300">Nome</TableHead>
                   <TableHead className="text-gray-300">Status</TableHead>
                   <TableHead className="text-gray-300 text-right">Ações</TableHead>
@@ -208,10 +196,7 @@ export default function QRUsAdmin() {
                     key={qru.id}
                     className="border-gray-700 hover:bg-[#0f172a]"
                   >
-                    <TableCell className="font-medium text-white">
-                      {qru.codigo}
-                    </TableCell>
-                    <TableCell className="text-gray-300">{qru.nome}</TableCell>
+                    <TableCell className="font-medium text-white">{qru.nome}</TableCell>
                     <TableCell>
                       <span
                         className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${

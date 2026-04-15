@@ -141,7 +141,7 @@ export default function Reports() {
 
       const passaporte = str(reg.passaporte);
       const nome = str(reg.nome);
-      const regDate = new Date(reg.data_cadastro || reg.data).getTime() || 0;
+      const regDate = new Date(reg.data_cadastro || (reg.data + 'T12:00:00')).getTime() || 0;
       const existing = grouped.get(passaporte);
 
       if (!existing) {
@@ -607,7 +607,7 @@ export default function Reports() {
                       <SelectItem value="__all__" className="text-gray-400">Todas</SelectItem>
                       {allowedPastas.map((pasta) => (
                         <SelectItem key={pasta.id} value={pasta.nome} className="text-white">
-                          {pasta.codigo} - {pasta.nome}
+                          {pasta.nome}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -630,7 +630,7 @@ export default function Reports() {
                       <SelectItem value="__all__" className="text-gray-400">Todos</SelectItem>
                       {qrus?.filter(q => q.ativo).map((qru) => (
                         <SelectItem key={qru.id} value={qru.nome} className="text-white">
-                          {qru.codigo} - {qru.nome}
+                          {qru.nome}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -822,7 +822,7 @@ export default function Reports() {
                       <SelectItem value="__all__" className="text-gray-400">Todas</SelectItem>
                       {allowedPastas.map((pasta) => (
                         <SelectItem key={pasta.id} value={pasta.nome} className="text-white">
-                          {pasta.codigo} - {pasta.nome}
+                          {pasta.nome}
                         </SelectItem>
                       ))}
                     </SelectContent>

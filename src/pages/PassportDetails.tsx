@@ -514,7 +514,7 @@ export default function PassportDetails() {
                     <SelectContent className="bg-[#1e293b] border-gray-700">
                       {qrus?.filter((q) => q.ativo).map((qru) => (
                         <SelectItem key={qru.id} value={qru.nome} className="text-white">
-                          {qru.codigo} - {qru.nome}
+                          {qru.nome}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -529,7 +529,7 @@ export default function PassportDetails() {
                     <SelectContent className="bg-[#1e293b] border-gray-700">
                       {allowedPastas.map((pasta) => (
                         <SelectItem key={pasta.id} value={pasta.nome} className="text-white">
-                          {pasta.codigo} - {pasta.nome}
+                          {pasta.nome}
                         </SelectItem>
                       ))}
                     </SelectContent>

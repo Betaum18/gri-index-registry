@@ -332,7 +332,7 @@ export default function UsersAdmin() {
                   onCheckedChange={() => togglePastaAccess(pasta.id, formType)}
                   className="border-gray-500 data-[state=checked]:bg-[#00ff87] data-[state=checked]:border-[#00ff87]"
                 />
-                <span className="text-xs text-gray-300">{pasta.codigo} - {pasta.nome}</span>
+                <span className="text-xs text-gray-300">{pasta.nome}</span>
               </label>
             ))}
           </div>

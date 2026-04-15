@@ -326,7 +326,7 @@ export default function VehicleDashboard() {
                   <SelectItem value="all" className="text-white">Todas as pastas</SelectItem>
                   {allowedPastas.map((p) => (
                     <SelectItem key={p.id} value={p.nome} className="text-white">
-                      {p.codigo} - {p.nome}
+                      {p.nome}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -539,7 +539,7 @@ export default function VehicleDashboard() {
                     <SelectItem value="__none__" className="text-gray-400">Nenhuma</SelectItem>
                     {allowedPastas.map((p) => (
                       <SelectItem key={p.id} value={p.nome} className="text-white">
-                        {p.codigo} - {p.nome}
+                        {p.nome}
                       </SelectItem>
                     ))}
                   </SelectContent>

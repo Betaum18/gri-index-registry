@@ -311,7 +311,7 @@ export default function Vehicles() {
                     <SelectContent className="bg-[#1e293b] border-gray-700">
                       {allowedPastas.map((p) => (
                         <SelectItem key={p.id} value={p.nome} className="text-white">
-                          {p.codigo} - {p.nome}
+                          {p.nome}
                         </SelectItem>
                       ))}
                     </SelectContent>

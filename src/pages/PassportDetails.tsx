@@ -86,7 +86,7 @@ export default function PassportDetails() {
   const { data: vehicles } = useVehicles();
   const { data: qrus } = useQRUs();
   const { data: pastas } = usePastas();
-  const { getAllowedPastas, hasPermission } = useAuth();
+  const { getAllowedPastas, hasPermission, isAdmin } = useAuth();
   const deleteRegistration = useDeleteRegistration();
   const updateRegistration = useUpdateRegistration();
 
@@ -337,6 +337,7 @@ export default function PassportDetails() {
                 <TableHead className="text-gray-400">Pasta</TableHead>
                 <TableHead className="text-gray-400">Data do Registro</TableHead>
                 <TableHead className="text-gray-400">Data de Cadastro</TableHead>
+                {isAdmin() && <TableHead className="text-gray-400">Registrado por</TableHead>}
                 {(canEdit || canDelete) && (
                   <TableHead className="text-gray-400 w-24">Ações</TableHead>
                 )}
@@ -402,6 +403,11 @@ export default function PassportDetails() {
                       {formatDateTime(registration.data_cadastro)}
                     </span>
                   </TableCell>
+                  {isAdmin() && (
+                    <TableCell className="text-gray-400 text-sm">
+                      {registration.registrado_por || '—'}
+                    </TableCell>
+                  )}
                   {(canEdit || canDelete) && (
                     <TableCell>
                       <div className="flex items-center gap-1">

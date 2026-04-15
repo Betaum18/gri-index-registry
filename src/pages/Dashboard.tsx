@@ -75,6 +75,7 @@ interface GroupedPerson {
   lastPasta: string;
   lastDate: string;
   allPastas: string[];
+  registradoPor: string;
 }
 
 export default function Dashboard() {
@@ -82,7 +83,7 @@ export default function Dashboard() {
   const { data: registrations, isLoading: isLoadingRegistrations } = useRegistrations();
   const { data: pastas, isLoading: isLoadingPastas } = usePastas();
   const { data: qrus } = useQRUs();
-  const { getAllowedPastas, hasPermission } = useAuth();
+  const { getAllowedPastas, hasPermission, isAdmin } = useAuth();
   const deleteRegistration = useDeleteRegistration();
   const updateRegistration = useUpdateRegistration();
 
@@ -165,6 +166,7 @@ export default function Dashboard() {
           lastPasta: reg.pasta,
           lastDate: reg.data_cadastro || reg.data,
           allPastas: showMultiplePastas ? (allPastasMap.get(reg.passaporte) || [reg.pasta]) : [reg.pasta],
+          registradoPor: reg.registrado_por || '',
           _latestPhotoDate: reg.imagem_url ? regDate : 0,
         } as GroupedPerson & { _latestPhotoDate: number });
       } else {
@@ -181,6 +183,7 @@ export default function Dashboard() {
           existing.lastQRU = reg.qru;
           existing.lastPasta = reg.pasta;
           existing.lastDate = reg.data_cadastro || reg.data;
+          existing.registradoPor = reg.registrado_por || '';
         }
       }
     });
@@ -471,6 +474,7 @@ export default function Dashboard() {
                   <TableHead className="text-gray-400">Registros</TableHead>
                   <TableHead className="text-gray-400">Último QRU</TableHead>
                   <TableHead className="text-gray-400">Última Pasta</TableHead>
+                  {isAdmin() && <TableHead className="text-gray-400">Registrado por</TableHead>}
                   <TableHead className="text-gray-400">Ações</TableHead>
                 </TableRow>
               </TableHeader>
@@ -544,6 +548,11 @@ export default function Dashboard() {
                         </span>
                       )}
                     </TableCell>
+                    {isAdmin() && (
+                      <TableCell className="cursor-pointer text-gray-400 text-sm" onClick={() => navigate(`/passaporte/${person.passaporte}`)}>
+                        {person.registradoPor || '—'}
+                      </TableCell>
+                    )}
                     <TableCell>
                       <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
                         <Button

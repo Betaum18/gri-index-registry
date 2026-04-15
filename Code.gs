@@ -198,7 +198,7 @@ function getRegistrations() {
   const registros = [];
 
   for (let i = 1; i < data.length; i++) {
-    const [id, passaporte, nome, qru, pasta, dataReg, imagemUrl, dataCadastro] = data[i];
+    const [id, passaporte, nome, qru, pasta, dataReg, imagemUrl, dataCadastro, registradoPor] = data[i];
 
     registros.push({
       id: id.toString(),
@@ -208,7 +208,8 @@ function getRegistrations() {
       pasta: pasta,
       data: dataReg,
       imagem_url: imagemUrl || '',
-      data_cadastro: dataCadastro
+      data_cadastro: dataCadastro,
+      registrado_por: registradoPor || ''
     });
   }
 
@@ -233,7 +234,8 @@ function createRegistration(data) {
     data.pasta,
     data.data,
     data.imagem_url || '',
-    dataCadastro
+    dataCadastro,
+    data.registrado_por || ''
   ]);
 
   return { success: true, id: id };

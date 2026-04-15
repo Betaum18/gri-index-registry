@@ -16,6 +16,7 @@ export interface Registration {
   data: string;                 // ISO date string (YYYY-MM-DD)
   imagem_url: string;
   data_cadastro: string;        // ISO datetime string
+  registrado_por?: string;
 }
 
 /**
@@ -28,6 +29,7 @@ export interface RegistrationInput {
   pasta: string;
   data: string;
   imagem_url?: string;
+  registrado_por?: string;
 }
 
 /**

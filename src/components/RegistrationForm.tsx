@@ -56,7 +56,7 @@ const RegistrationForm = () => {
   const { data: passportExists } = usePassportCheck(formData.passaporte);
   const { data: qrus, isLoading: isLoadingQRUs } = useQRUs();
   const { data: pastas, isLoading: isLoadingPastas } = usePastas();
-  const { getAllowedPastas } = useAuth();
+  const { getAllowedPastas, user } = useAuth();
 
   // Filtrar apenas QRUs e Pastas ativos
   const activeQRUs = qrus?.filter(qru => qru.ativo) || [];
@@ -235,6 +235,7 @@ const RegistrationForm = () => {
       pasta: formData.pasta,
       data: formData.data,
       imagem_url: imagemUrl,
+      registrado_por: user?.usuario || '',
     };
 
     createRegistration(registrationData, {

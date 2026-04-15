@@ -472,6 +472,19 @@ function deletePasta(data) {
   for (let i = 1; i < allData.length; i++) {
     if (allData[i][0].toString() === data.id.toString()) {
       sheet.deleteRow(i + 1);
+
+      // Remover o ID da pasta das permissões de todos os usuários
+      const usersSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME_USUARIOS);
+      const usersData = usersSheet.getDataRange().getValues();
+      for (let j = 1; j < usersData.length; j++) {
+        const current = usersData[j][10] ? usersData[j][10].toString() : '';
+        const ids = current ? current.split(',').map(function(s) { return s.trim(); }).filter(Boolean) : [];
+        const updated = ids.filter(function(id) { return id !== data.id.toString(); });
+        if (updated.length !== ids.length) {
+          usersSheet.getRange(j + 1, 11).setValue(updated.join(','));
+        }
+      }
+
       return { success: true, message: 'Pasta deletada com sucesso' };
     }
   }

@@ -161,6 +161,11 @@ export default function Vehicles() {
       return;
     }
 
+    if (!pasta) {
+      toast.error('A pasta é obrigatória');
+      return;
+    }
+
     if (!photoVeiculo.slot.file) {
       toast.error('A foto do veículo é obrigatória');
       return;
@@ -206,7 +211,7 @@ export default function Vehicles() {
       toast.success('Veículo cadastrado com sucesso!');
       resetForm();
     } catch (error) {
-      toast.error('Erro ao cadastrar veículo');
+      toast.error(error instanceof Error ? error.message : 'Erro ao cadastrar veículo');
       console.error(error);
     } finally {
       setIsSubmitting(false);
@@ -297,14 +302,13 @@ export default function Vehicles() {
                 <div>
                   <label className="text-sm text-gray-400 mb-2 block flex items-center gap-1">
                     <FolderOpen className="h-3 w-3" />
-                    Pasta
+                    Pasta *
                   </label>
-                  <Select value={pasta || '__none__'} onValueChange={(v) => setPasta(v === '__none__' ? '' : v)}>
+                  <Select value={pasta} onValueChange={setPasta}>
                     <SelectTrigger className="bg-[#0f172a] border-gray-600 text-white">
                       <SelectValue placeholder="Selecione uma pasta" />
                     </SelectTrigger>
                     <SelectContent className="bg-[#1e293b] border-gray-700">
-                      <SelectItem value="__none__" className="text-gray-400">Nenhuma</SelectItem>
                       {allowedPastas.map((p) => (
                         <SelectItem key={p.id} value={p.nome} className="text-white">
                           {p.codigo} - {p.nome}

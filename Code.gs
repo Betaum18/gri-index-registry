@@ -444,6 +444,20 @@ function createPasta(data) {
     true
   ]);
 
+  // Adicionar acesso à nova pasta para todos os usuários não-admin
+  const usersSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME_USUARIOS);
+  const usersData = usersSheet.getDataRange().getValues();
+  for (let i = 1; i < usersData.length; i++) {
+    const isAdmin = parseBoolean(usersData[i][5]); // coluna F = is_admin
+    if (isAdmin) continue;
+    const current = usersData[i][10] ? usersData[i][10].toString() : ''; // coluna K = pastas_acesso
+    const ids = current ? current.split(',').map(function(s) { return s.trim(); }).filter(Boolean) : [];
+    if (!ids.includes(id)) {
+      ids.push(id);
+      usersSheet.getRange(i + 1, 11).setValue(ids.join(','));
+    }
+  }
+
   return { success: true, id: id };
 }
 
@@ -690,11 +704,11 @@ function getVehicles() {
       modelo: row[3].toString(),
       cor: row[4].toString(),
       pasta: row[5] ? row[5].toString() : '',
-      data: row[6] ? row[6].toString() : '',
+      data: row[6] instanceof Date ? Utilities.formatDate(row[6], Session.getScriptTimeZone(), 'yyyy-MM-dd') : (row[6] ? row[6].toString() : ''),
       imagem_url: row[7] || '',
       imagem_porta_malas: row[8] || '',
       imagem_emplacamento: row[9] || '',
-      data_cadastro: row[10] || row[6] || ''
+      data_cadastro: row[10] ? row[10].toString() : (row[6] instanceof Date ? Utilities.formatDate(row[6], Session.getScriptTimeZone(), 'yyyy-MM-dd') : (row[6] ? row[6].toString() : ''))
     });
   }
 
@@ -711,8 +725,8 @@ function createVehicle(data) {
     sheet.appendRow(['id', 'passaporte', 'placa', 'modelo', 'cor', 'pasta', 'data', 'imagem_url', 'imagem_porta_malas', 'imagem_emplacamento', 'data_cadastro']);
   }
 
-  if (!data.passaporte || !data.placa || !data.modelo || !data.cor) {
-    return { success: false, error: 'Passaporte, placa, modelo e cor sao obrigatorios' };
+  if (!data.passaporte || !data.cor) {
+    return { success: false, error: 'Passaporte e cor sao obrigatorios' };
   }
 
   var id = Utilities.getUuid();

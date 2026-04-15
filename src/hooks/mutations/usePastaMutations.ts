@@ -17,6 +17,7 @@ export function useCreatePasta() {
     onSuccess: () => {
       // Invalidar cache para forçar refresh
       queryClient.invalidateQueries({ queryKey: ['pastas'] });
+      queryClient.invalidateQueries({ queryKey: ['users'] });
     },
   });
 }

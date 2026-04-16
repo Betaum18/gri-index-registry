@@ -51,6 +51,12 @@ export const API_ACTIONS = {
   CREATE_VEHICLE: 'createVehicle',
   UPDATE_VEHICLE: 'updateVehicle',
   DELETE_VEHICLE: 'deleteVehicle',
+
+  // Zonas Vermelhas
+  GET_ZONAS_VERMELHAS: 'getZonasVermelhas',
+  CREATE_ZONA_VERMELHA: 'createZonaVermelha',
+  UPDATE_ZONA_VERMELHA: 'updateZonaVermelha',
+  DELETE_ZONA_VERMELHA: 'deleteZonaVermelha',
 } as const;
 
 // Configurações de cache do React Query (em ms)

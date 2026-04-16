@@ -27,6 +27,9 @@ import type {
   Vehicle,
   VehicleInput,
   VehicleUpdateInput,
+  ZonaVermelha,
+  ZonaVermelhaInput,
+  ZonaVermelhaUpdateInput,
 } from './types';
 
 /**
@@ -342,6 +345,24 @@ export async function updateVehicle(data: VehicleUpdateInput): Promise<DeleteRes
  */
 export async function deleteVehicle(id: string): Promise<DeleteResponse> {
   return post<DeleteResponse>(API_ACTIONS.DELETE_VEHICLE, { id });
+}
+
+// ===== ENDPOINTS DE ZONAS VERMELHAS =====
+
+export async function getZonasVermelhas(): Promise<ZonaVermelha[]> {
+  return get<ZonaVermelha[]>(API_ACTIONS.GET_ZONAS_VERMELHAS);
+}
+
+export async function createZonaVermelha(input: ZonaVermelhaInput): Promise<CreateResponse & { data_cadastro?: string }> {
+  return post<CreateResponse & { data_cadastro?: string }>(API_ACTIONS.CREATE_ZONA_VERMELHA, input);
+}
+
+export async function updateZonaVermelha(data: ZonaVermelhaUpdateInput): Promise<DeleteResponse> {
+  return post<DeleteResponse>(API_ACTIONS.UPDATE_ZONA_VERMELHA, data);
+}
+
+export async function deleteZonaVermelha(id: string): Promise<DeleteResponse> {
+  return post<DeleteResponse>(API_ACTIONS.DELETE_ZONA_VERMELHA, { id });
 }
 
 // ===== HELPERS =====

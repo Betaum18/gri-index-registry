@@ -14,6 +14,7 @@ const SHEET_NAME_USUARIOS = 'Usuarios';
 const SHEET_NAME_QRUS = 'QRUs';
 const SHEET_NAME_PASTAS = 'Pastas';
 const SHEET_NAME_VEICULOS = 'Veiculos';
+const SHEET_NAME_ZONAS_VERMELHAS = 'ZonasVermelhas';
 
 // ENDPOINT PRINCIPAL
 function doGet(e) {
@@ -121,6 +122,22 @@ function doGet(e) {
 
       case 'updateVehicle':
         result = updateVehicle(dataParam ? JSON.parse(dataParam) : {});
+        break;
+
+      case 'getZonasVermelhas':
+        result = getZonasVermelhas();
+        break;
+
+      case 'createZonaVermelha':
+        result = createZonaVermelha(dataParam ? JSON.parse(dataParam) : {});
+        break;
+
+      case 'updateZonaVermelha':
+        result = updateZonaVermelha(dataParam ? JSON.parse(dataParam) : {});
+        break;
+
+      case 'deleteZonaVermelha':
+        result = deleteZonaVermelha(dataParam ? JSON.parse(dataParam) : {});
         break;
 
       default:
@@ -815,4 +832,118 @@ function deleteVehicle(data) {
   }
 
   return { success: false, error: 'Veiculo nao encontrado' };
+}
+
+// FUNCOES DE ZONAS VERMELHAS
+// ESTRUTURA DA SHEET ZONASVERMELHAS:
+// A: id | B: nome | C: descricao | D: x | E: y | F: foto_url | G: criado_por | H: data_cadastro
+function getZonasVermelhas() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(SHEET_NAME_ZONAS_VERMELHAS);
+
+  if (!sheet) {
+    sheet = ss.insertSheet(SHEET_NAME_ZONAS_VERMELHAS);
+    sheet.appendRow(['id', 'nome', 'descricao', 'x', 'y', 'foto_url', 'criado_por', 'data_cadastro']);
+    return [];
+  }
+
+  var data = sheet.getDataRange().getValues();
+  var zonas = [];
+
+  for (var i = 1; i < data.length; i++) {
+    var row = data[i];
+    if (!row[0]) continue;
+    zonas.push({
+      id: row[0].toString(),
+      nome: row[1] ? row[1].toString() : '',
+      descricao: row[2] ? row[2].toString() : '',
+      x: parseFloat(row[3]) || 0,
+      y: parseFloat(row[4]) || 0,
+      foto_url: row[5] ? row[5].toString() : '',
+      criado_por: row[6] ? row[6].toString() : '',
+      data_cadastro: row[7] ? row[7].toString() : ''
+    });
+  }
+
+  return zonas;
+}
+
+function createZonaVermelha(data) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(SHEET_NAME_ZONAS_VERMELHAS);
+
+  if (!sheet) {
+    sheet = ss.insertSheet(SHEET_NAME_ZONAS_VERMELHAS);
+    sheet.appendRow(['id', 'nome', 'descricao', 'x', 'y', 'foto_url', 'criado_por', 'data_cadastro']);
+  }
+
+  if (!data.nome) {
+    return { success: false, error: 'Nome e obrigatorio' };
+  }
+
+  var id = Utilities.getUuid();
+  var dataCadastro = new Date().toISOString();
+
+  sheet.appendRow([
+    id,
+    data.nome,
+    data.descricao || '',
+    data.x || 0,
+    data.y || 0,
+    data.foto_url || '',
+    data.criado_por || '',
+    dataCadastro
+  ]);
+
+  return { success: true, id: id, data_cadastro: dataCadastro };
+}
+
+function updateZonaVermelha(data) {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME_ZONAS_VERMELHAS);
+
+  if (!sheet) {
+    return { success: false, error: 'Aba de zonas vermelhas nao encontrada' };
+  }
+
+  if (!data.id) {
+    return { success: false, error: 'ID nao fornecido' };
+  }
+
+  var allData = sheet.getDataRange().getValues();
+
+  for (var i = 1; i < allData.length; i++) {
+    if (allData[i][0].toString() === data.id.toString()) {
+      if (data.nome !== undefined) sheet.getRange(i + 1, 2).setValue(data.nome);
+      if (data.descricao !== undefined) sheet.getRange(i + 1, 3).setValue(data.descricao);
+      if (data.x !== undefined) sheet.getRange(i + 1, 4).setValue(data.x);
+      if (data.y !== undefined) sheet.getRange(i + 1, 5).setValue(data.y);
+      if (data.foto_url !== undefined) sheet.getRange(i + 1, 6).setValue(data.foto_url);
+      return { success: true, message: 'Zona atualizada com sucesso' };
+    }
+  }
+
+  return { success: false, error: 'Zona nao encontrada' };
+}
+
+function deleteZonaVermelha(data) {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME_ZONAS_VERMELHAS);
+
+  if (!sheet) {
+    return { success: false, error: 'Aba de zonas vermelhas nao encontrada' };
+  }
+
+  if (!data.id) {
+    return { success: false, error: 'ID nao fornecido' };
+  }
+
+  var allData = sheet.getDataRange().getValues();
+
+  for (var i = 1; i < allData.length; i++) {
+    if (allData[i][0].toString() === data.id.toString()) {
+      sheet.deleteRow(i + 1);
+      return { success: true, message: 'Zona deletada com sucesso' };
+    }
+  }
+
+  return { success: false, error: 'Zona nao encontrada' };
 }

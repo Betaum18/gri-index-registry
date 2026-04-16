@@ -10,7 +10,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Menu, X, LogOut, User, FileText, MapPin, FolderOpen, Users, FileDown, Car, LayoutDashboard } from "lucide-react";
+import { Menu, X, LogOut, User, FileText, MapPin, FolderOpen, Users, FileDown, Car, LayoutDashboard, AlertTriangle } from "lucide-react";
 import griLogo from "@/assets/gri-logo-new.png";
 import pmLogo from "@/assets/pm-logo-new.png";
 
@@ -64,6 +64,12 @@ const Header = () => {
       path: "/relatorios",
       label: "Relatórios",
       icon: FileDown,
+      // Visível para todos os usuários autenticados
+    },
+    {
+      path: "/zonas-vermelhas",
+      label: "Zonas Vermelhas",
+      icon: AlertTriangle,
       // Visível para todos os usuários autenticados
     },
     {

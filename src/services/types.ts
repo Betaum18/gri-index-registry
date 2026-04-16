@@ -175,6 +175,38 @@ export interface PastaInput {
 }
 
 /**
+ * Zona Vermelha no mapa do GTA V
+ */
+export interface ZonaVermelha {
+  id: string;
+  nome: string;
+  descricao: string;
+  x: number;
+  y: number;
+  foto_url: string;
+  criado_por: string;
+  data_cadastro: string;
+}
+
+export interface ZonaVermelhaInput {
+  nome: string;
+  descricao?: string;
+  x: number;
+  y: number;
+  foto_url?: string;
+  criado_por?: string;
+}
+
+export interface ZonaVermelhaUpdateInput {
+  id: string;
+  nome?: string;
+  descricao?: string;
+  x?: number;
+  y?: number;
+  foto_url?: string;
+}
+
+/**
  * Estatísticas do dashboard
  */
 export interface Stats {

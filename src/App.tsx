@@ -16,6 +16,7 @@ import UsersAdmin from "./pages/UsersAdmin";
 import Reports from "./pages/Reports";
 import Vehicles from "./pages/Vehicles";
 import VehicleDashboard from "./pages/VehicleDashboard";
+import ZonasVermelhas from "./pages/ZonasVermelhas";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -99,6 +100,14 @@ const App = () => (
                 element={
                   <ProtectedRoute>
                     <Reports />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/zonas-vermelhas"
+                element={
+                  <ProtectedRoute>
+                    <ZonasVermelhas />
                   </ProtectedRoute>
                 }
               />

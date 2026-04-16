@@ -59,10 +59,6 @@ function doGet(e) {
         result = createQRU(dataParam ? JSON.parse(dataParam) : {});
         break;
 
-      case 'updateQRU':
-        result = updateQRU(dataParam ? JSON.parse(dataParam) : {});
-        break;
-
       case 'deleteQRU':
         result = deleteQRU(dataParam ? JSON.parse(dataParam) : {});
         break;
@@ -77,10 +73,6 @@ function doGet(e) {
 
       case 'createPasta':
         result = createPasta(dataParam ? JSON.parse(dataParam) : {});
-        break;
-
-      case 'updatePasta':
-        result = updatePasta(dataParam ? JSON.parse(dataParam) : {});
         break;
 
       case 'deletePasta':
@@ -418,25 +410,6 @@ function toggleQRU(data) {
   return { success: false, error: 'QRU nao encontrado' };
 }
 
-function updateQRU(data) {
-  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME_QRUS);
-  const allData = sheet.getDataRange().getValues();
-
-  if (!data.id || !data.nome) {
-    return { success: false, error: 'ID e nome sao obrigatorios' };
-  }
-
-  for (let i = 1; i < allData.length; i++) {
-    if (allData[i][0].toString() === data.id.toString()) {
-      sheet.getRange(i + 1, 2).setValue(data.nome); // codigo
-      sheet.getRange(i + 1, 3).setValue(data.nome); // nome
-      return { success: true, message: 'QRU atualizado com sucesso' };
-    }
-  }
-
-  return { success: false, error: 'QRU nao encontrado' };
-}
-
 // FUNCOES DE PASTAS
 function getPastas() {
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME_PASTAS);
@@ -541,25 +514,6 @@ function togglePasta(data) {
         ativo: novoAtivo,
         message: novoAtivo ? 'Pasta ativada' : 'Pasta desativada'
       };
-    }
-  }
-
-  return { success: false, error: 'Pasta nao encontrada' };
-}
-
-function updatePasta(data) {
-  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME_PASTAS);
-  const allData = sheet.getDataRange().getValues();
-
-  if (!data.id || !data.nome) {
-    return { success: false, error: 'ID e nome sao obrigatorios' };
-  }
-
-  for (let i = 1; i < allData.length; i++) {
-    if (allData[i][0].toString() === data.id.toString()) {
-      sheet.getRange(i + 1, 2).setValue(data.nome); // codigo
-      sheet.getRange(i + 1, 3).setValue(data.nome); // nome
-      return { success: true, message: 'Pasta atualizada com sucesso' };
     }
   }
 

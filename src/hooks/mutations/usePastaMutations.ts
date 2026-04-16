@@ -3,7 +3,7 @@
  */
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { createPasta, updatePasta, deletePasta, togglePasta } from '@/services/api.service';
+import { createPasta, deletePasta, togglePasta } from '@/services/api.service';
 import type { PastaInput } from '@/services/types';
 
 /**
@@ -18,20 +18,6 @@ export function useCreatePasta() {
       // Invalidar cache para forçar refresh
       queryClient.invalidateQueries({ queryKey: ['pastas'] });
       queryClient.invalidateQueries({ queryKey: ['users'] });
-    },
-  });
-}
-
-/**
- * Hook para atualizar Pasta
- */
-export function useUpdatePasta() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: (data: { id: string; nome: string }) => updatePasta(data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['pastas'] });
     },
   });
 }

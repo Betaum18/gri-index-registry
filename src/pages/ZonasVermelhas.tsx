@@ -77,13 +77,25 @@ const ZonasVermelhas = () => {
     const wrapper = wrapperRef.current;
     const img = imgRef.current;
     if (!wrapper || !img || !img.naturalWidth) return;
-    const scaleX = wrapper.clientWidth / img.naturalWidth;
-    const scaleY = wrapper.clientHeight / img.naturalHeight;
-    const scale = Math.max(scaleX, scaleY);
-    const x = (wrapper.clientWidth - img.naturalWidth * scale) / 2;
-    const y = (wrapper.clientHeight - img.naturalHeight * scale) / 2;
+    const ww = wrapper.clientWidth;
+    const wh = wrapper.clientHeight;
+    if (!ww || !wh) return;
+    // escala para mostrar o mapa inteiro com uma pequena margem
+    const scale = Math.min(ww / img.naturalWidth, wh / img.naturalHeight) * 0.95;
+    const x = (ww - img.naturalWidth * scale) / 2;
+    const y = (wh - img.naturalHeight * scale) / 2;
     setTransform({ x, y, scale });
   }, []);
+
+  // garantir que resetView seja chamado após o layout estabilizar
+  useEffect(() => {
+    const img = imgRef.current;
+    if (!img) return;
+    if (img.complete && img.naturalWidth) {
+      // imagem já carregada (cache) — aguarda o layout
+      requestAnimationFrame(() => requestAnimationFrame(resetView));
+    }
+  }, [resetView]);
 
   // ── zoom ──
   const applyZoom = useCallback((factor: number, cx?: number, cy?: number) => {
@@ -293,7 +305,7 @@ const ZonasVermelhas = () => {
             alt="Mapa GTA V"
             draggable={false}
             style={{ display: 'block', pointerEvents: 'none' }}
-            onLoad={resetView}
+            onLoad={() => requestAnimationFrame(() => requestAnimationFrame(resetView))}
           />
 
           {/* marcadores */}

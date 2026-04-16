@@ -79,7 +79,7 @@ const ZonasVermelhas = () => {
     if (!wrapper || !img || !img.naturalWidth) return;
     const scaleX = wrapper.clientWidth / img.naturalWidth;
     const scaleY = wrapper.clientHeight / img.naturalHeight;
-    const scale = Math.min(scaleX, scaleY, 1);
+    const scale = Math.max(scaleX, scaleY);
     const x = (wrapper.clientWidth - img.naturalWidth * scale) / 2;
     const y = (wrapper.clientHeight - img.naturalHeight * scale) / 2;
     setTransform({ x, y, scale });

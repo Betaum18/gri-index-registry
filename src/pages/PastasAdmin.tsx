@@ -4,7 +4,8 @@
 
 import { useState } from 'react';
 import { usePastas } from '@/hooks/queries/usePastas';
-import { useCreatePasta, useDeletePasta, useTogglePasta } from '@/hooks/mutations/usePastaMutations';
+import { useCreatePasta, useUpdatePasta, useDeletePasta, useTogglePasta } from '@/hooks/mutations/usePastaMutations';
+import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -25,18 +26,24 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import { Loader2, Plus, Trash2, Power } from 'lucide-react';
+import { Loader2, Plus, Trash2, Power, Pencil } from 'lucide-react';
 import Header from '@/components/Header';
+import type { Pasta } from '@/services/types';
 
 export default function PastasAdmin() {
   const { toast } = useToast();
+  const { isAdmin } = useAuth();
   const { data: pastas, isLoading } = usePastas();
   const { mutate: createPasta, isPending: isCreating } = useCreatePasta();
+  const { mutate: updatePasta, isPending: isUpdating } = useUpdatePasta();
   const { mutate: deletePasta, isPending: isDeleting } = useDeletePasta();
   const { mutate: togglePasta, isPending: isToggling } = useTogglePasta();
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [formData, setFormData] = useState({ nome: '' });
+
+  const [editingPasta, setEditingPasta] = useState<Pasta | null>(null);
+  const [editNome, setEditNome] = useState('');
 
   const handleCreate = (e: React.FormEvent) => {
     e.preventDefault();
@@ -59,6 +66,30 @@ export default function PastasAdmin() {
       onError: (error: any) => {
         toast({
           title: 'Erro ao criar Pasta',
+          description: error.message || 'Tente novamente',
+          variant: 'destructive',
+        });
+      },
+    });
+  };
+
+  const handleOpenEdit = (pasta: Pasta) => {
+    setEditingPasta(pasta);
+    setEditNome(pasta.nome);
+  };
+
+  const handleUpdate = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingPasta || !editNome.trim()) return;
+
+    updatePasta({ id: editingPasta.id, nome: editNome.trim() }, {
+      onSuccess: () => {
+        toast({ title: 'Pasta atualizada com sucesso!' });
+        setEditingPasta(null);
+      },
+      onError: (error: any) => {
+        toast({
+          title: 'Erro ao atualizar Pasta',
           description: error.message || 'Tente novamente',
           variant: 'destructive',
         });
@@ -210,6 +241,16 @@ export default function PastasAdmin() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex gap-2 justify-end">
+                        {isAdmin() && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleOpenEdit(pasta)}
+                            className="border-blue-500 text-blue-400 hover:bg-blue-500/10"
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                        )}
                         <Button
                           size="sm"
                           variant="outline"
@@ -236,6 +277,55 @@ export default function PastasAdmin() {
           )}
         </div>
       </main>
+
+      {/* Dialog de edição */}
+      <Dialog open={!!editingPasta} onOpenChange={(open) => { if (!open) setEditingPasta(null); }}>
+        <DialogContent className="bg-[#1e293b] text-white border-gray-700">
+          <DialogHeader>
+            <DialogTitle>Editar Pasta</DialogTitle>
+            <DialogDescription className="text-gray-400">
+              Altere o nome da Pasta
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleUpdate} className="space-y-4 mt-4">
+            <div>
+              <Label htmlFor="edit-nome">Nome</Label>
+              <Input
+                id="edit-nome"
+                value={editNome}
+                onChange={(e) => setEditNome(e.target.value)}
+                className="bg-[#0f172a] border-gray-600 text-white"
+              />
+            </div>
+
+            <div className="flex gap-2 justify-end">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setEditingPasta(null)}
+                className="border-gray-600 text-white hover:bg-gray-700"
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                disabled={isUpdating || !editNome.trim()}
+                className="bg-[#00ff87] text-black hover:bg-[#00cc6e]"
+              >
+                {isUpdating ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Salvando...
+                  </>
+                ) : (
+                  'Salvar'
+                )}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

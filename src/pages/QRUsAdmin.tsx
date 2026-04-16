@@ -4,7 +4,8 @@
 
 import { useState } from 'react';
 import { useQRUs } from '@/hooks/queries/useQRUs';
-import { useCreateQRU, useDeleteQRU, useToggleQRU } from '@/hooks/mutations/useQRUMutations';
+import { useCreateQRU, useUpdateQRU, useDeleteQRU, useToggleQRU } from '@/hooks/mutations/useQRUMutations';
+import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -25,18 +26,24 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import { Loader2, Plus, Trash2, Power } from 'lucide-react';
+import { Loader2, Plus, Trash2, Power, Pencil } from 'lucide-react';
 import Header from '@/components/Header';
+import type { QRU } from '@/services/types';
 
 export default function QRUsAdmin() {
   const { toast } = useToast();
+  const { isAdmin } = useAuth();
   const { data: qrus, isLoading } = useQRUs();
   const { mutate: createQRU, isPending: isCreating } = useCreateQRU();
+  const { mutate: updateQRU, isPending: isUpdating } = useUpdateQRU();
   const { mutate: deleteQRU, isPending: isDeleting } = useDeleteQRU();
   const { mutate: toggleQRU, isPending: isToggling } = useToggleQRU();
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [formData, setFormData] = useState({ nome: '' });
+
+  const [editingQRU, setEditingQRU] = useState<QRU | null>(null);
+  const [editNome, setEditNome] = useState('');
 
   const handleCreate = (e: React.FormEvent) => {
     e.preventDefault();
@@ -59,6 +66,30 @@ export default function QRUsAdmin() {
       onError: (error: any) => {
         toast({
           title: 'Erro ao criar QRU',
+          description: error.message || 'Tente novamente',
+          variant: 'destructive',
+        });
+      },
+    });
+  };
+
+  const handleOpenEdit = (qru: QRU) => {
+    setEditingQRU(qru);
+    setEditNome(qru.nome);
+  };
+
+  const handleUpdate = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingQRU || !editNome.trim()) return;
+
+    updateQRU({ id: editingQRU.id, nome: editNome.trim() }, {
+      onSuccess: () => {
+        toast({ title: 'QRU atualizado com sucesso!' });
+        setEditingQRU(null);
+      },
+      onError: (error: any) => {
+        toast({
+          title: 'Erro ao atualizar QRU',
           description: error.message || 'Tente novamente',
           variant: 'destructive',
         });
@@ -210,6 +241,16 @@ export default function QRUsAdmin() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex gap-2 justify-end">
+                        {isAdmin() && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleOpenEdit(qru)}
+                            className="border-blue-500 text-blue-400 hover:bg-blue-500/10"
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                        )}
                         <Button
                           size="sm"
                           variant="outline"
@@ -236,6 +277,55 @@ export default function QRUsAdmin() {
           )}
         </div>
       </main>
+
+      {/* Dialog de edição */}
+      <Dialog open={!!editingQRU} onOpenChange={(open) => { if (!open) setEditingQRU(null); }}>
+        <DialogContent className="bg-[#1e293b] text-white border-gray-700">
+          <DialogHeader>
+            <DialogTitle>Editar QRU</DialogTitle>
+            <DialogDescription className="text-gray-400">
+              Altere o nome do QRU
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleUpdate} className="space-y-4 mt-4">
+            <div>
+              <Label htmlFor="edit-nome">Nome</Label>
+              <Input
+                id="edit-nome"
+                value={editNome}
+                onChange={(e) => setEditNome(e.target.value)}
+                className="bg-[#0f172a] border-gray-600 text-white"
+              />
+            </div>
+
+            <div className="flex gap-2 justify-end">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setEditingQRU(null)}
+                className="border-gray-600 text-white hover:bg-gray-700"
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                disabled={isUpdating || !editNome.trim()}
+                className="bg-[#00ff87] text-black hover:bg-[#00cc6e]"
+              >
+                {isUpdating ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Salvando...
+                  </>
+                ) : (
+                  'Salvar'
+                )}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

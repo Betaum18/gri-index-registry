@@ -225,6 +225,13 @@ export async function createQRU(input: QRUInput): Promise<CreateResponse> {
 }
 
 /**
+ * Atualizar QRU
+ */
+export async function updateQRU(data: { id: string; nome: string }): Promise<DeleteResponse> {
+  return post<DeleteResponse>(API_ACTIONS.UPDATE_QRU, data);
+}
+
+/**
  * Deletar QRU
  */
 export async function deleteQRU(id: string): Promise<DeleteResponse> {
@@ -252,6 +259,13 @@ export async function getPastas(): Promise<Pasta[]> {
  */
 export async function createPasta(input: PastaInput): Promise<CreateResponse> {
   return post<CreateResponse>(API_ACTIONS.CREATE_PASTA, input);
+}
+
+/**
+ * Atualizar Pasta
+ */
+export async function updatePasta(data: { id: string; nome: string }): Promise<DeleteResponse> {
+  return post<DeleteResponse>(API_ACTIONS.UPDATE_PASTA, data);
 }
 
 /**
